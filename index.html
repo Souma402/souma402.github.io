@@ -17,46 +17,27 @@
     }
     
     .modal-overlay { 
-      position: fixed; 
-      top: 0; left: 0; 
-      width: 100%; height: 100%; 
-      background: rgba(0, 0, 0, 0.4); 
-      display: flex; 
-      justify-content: center; 
-      align-items: center; 
-      z-index: 999; 
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+      background: rgba(0, 0, 0, 0.4); display: flex; justify-content: center; align-items: center; z-index: 999; 
     }
     .card { 
-      background: #fff; 
-      padding: 24px; 
-      border-radius: 16px; 
-      box-shadow: 0 8px 24px rgba(0,0,0,0.15); 
-      width: 90%; 
-      max-width: 320px; 
-      text-align: center; 
+      background: #fff; padding: 24px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); 
+      width: 90%; max-width: 320px; text-align: center; 
     }
-    .card h3 { color: #333; margin-bottom: 8px; }
-    .card p { font-size: 13px; color: #666; margin-bottom: 16px; }
+    .card h3 { color: #333; margin-bottom: 12px; }
+    .card p { font-size: 13px; color: #666; margin-bottom: 8px; }
     .card input { 
-      width: 100%; 
-      padding: 10px; 
-      border: 1px solid #ddd; 
-      border-radius: 8px; 
-      font-size: 14px; 
-      outline: none; 
-      margin-bottom: 12px; 
+      width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; margin-bottom: 12px; 
     }
-    .card input[readonly] { background: #f0f0f0; color: #333; font-weight: bold; text-align: center; letter-spacing: 2px; }
+    .card input[readonly] { background: #f0f0f0; color: #333; font-weight: bold; text-align: center; letter-spacing: 2px; margin-bottom: 16px; }
     .card button.primary-btn { width: 100%; background: #3ecf8e; color: #fff; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
     .card button.primary-btn:hover { opacity: 0.9; }
     .card button.text-btn { background: none; border: none; color: #0084ff; font-size: 13px; cursor: pointer; text-decoration: underline; }
     .error-msg { color: #ff4d4f; font-size: 12px; margin-bottom: 10px; min-height: 15px; }
 
     .app-card { 
-      width: 100%; max-width: 420px; height: 600px; 
-      background: #fff; border-radius: 16px; 
-      box-shadow: 0 8px 24px rgba(0,0,0,0.08); 
-      display: none; flex-direction: column; overflow: hidden; position: relative;
+      width: 100%; max-width: 420px; height: 600px; background: #fff; border-radius: 16px; 
+      box-shadow: 0 8px 24px rgba(0,0,0,0.08); display: none; flex-direction: column; overflow: hidden; position: relative;
     }
     
     .app-header { background: #3ecf8e; color: #fff; padding: 12px 16px; display: flex; flex-direction: column; align-items: center; position: relative; }
@@ -74,6 +55,7 @@
     .room-item { background: #fff; padding: 16px; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: transform 0.1s; }
     .room-item:active { transform: scale(0.98); }
     .room-name { font-weight: bold; font-size: 16px; color: #333; }
+    .room-number { font-size: 12px; color: #888; margin-top: 4px; }
     
     .bottom-actions { padding: 12px; background: #fff; border-top: 1px solid #eee; display: flex; gap: 10px; }
     .bottom-actions button { flex: 1; padding: 12px 0; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; }
@@ -128,11 +110,15 @@
     </div>
   </div>
 
+  <!-- 🌟 新しいルーム作成モーダルを更新 -->
   <div class="modal-overlay" id="createRoomModal" style="display: none;">
     <div class="card">
       <h3>新しいルームを作成</h3>
-      <p>専用ナンバー</p>
+      <input type="text" id="newRoomName" placeholder="ルーム名 (例: 雑談部屋)">
+      
+      <p style="margin-top: 10px; margin-bottom: 4px;">専用ナンバー</p>
       <input type="text" id="newRoomNumber" readonly>
+      
       <input type="password" id="newRoomPassword" placeholder="パスワードを設定">
       <div class="button-group">
         <button class="primary-btn cancel-btn" onclick="closeModals()">キャンセル</button>
@@ -206,13 +192,10 @@
     let currentRoomNumber = null;
     let realtimeChannel = null;
     
-    // 参加しているルームをブラウザ(localStorage)に記憶させておく配列
     let myRooms = JSON.parse(localStorage.getItem('myRooms')) || [];
 
     // --- 認証 ---
-    function nameToEmail(username) {
-      return `${encodeURIComponent(username.trim().toLowerCase())}@roomie.app`;
-    }
+    function nameToEmail(username) { return `${encodeURIComponent(username.trim().toLowerCase())}@roomie.app`; }
 
     function checkAppPassword() {
       if (document.getElementById('appPassInput').value === APP_PASSWORD) {
@@ -268,36 +251,45 @@
       await supabaseClient.auth.signOut();
       currentUser = null;
       closeLogoutConfirm();
-      location.reload(); // ログアウト時は画面リセット
+      location.reload(); 
     }
 
     // --- ルーム関連 ---
     function openCreateRoomModal() {
+      document.getElementById('newRoomName').value = '';
       document.getElementById('newRoomNumber').value = Math.floor(100000 + Math.random() * 900000);
       document.getElementById('newRoomPassword').value = '';
       document.getElementById('createRoomModal').style.display = 'flex';
     }
+    
     function openJoinRoomModal() {
       document.getElementById('joinRoomNumber').value = '';
       document.getElementById('joinRoomPassword').value = '';
       document.getElementById('joinRoomModal').style.display = 'flex';
     }
+    
     function closeModals() {
       document.getElementById('createRoomModal').style.display = 'none';
       document.getElementById('joinRoomModal').style.display = 'none';
     }
 
+    // 🌟 ルーム作成時に名前も保存するように変更
     async function createRoom() {
+      const name = document.getElementById('newRoomName').value.trim() || '無名のルーム';
       const num = document.getElementById('newRoomNumber').value;
       const pass = document.getElementById('newRoomPassword').value;
       if(!pass) return alert("パスワードを入力してください");
 
-      const { data, error } = await supabaseClient.from('rooms').insert([{ room_number: num, password: pass }]);
+      const { data, error } = await supabaseClient.from('rooms').insert([{ 
+        room_number: num, 
+        password: pass,
+        room_name: name
+      }]);
       
       if (error) {
         alert("エラー: " + error.message);
       } else {
-        alert(`ルームを作成しました！`);
+        alert(`ルーム「${name}」を作成しました！`);
         addRoomToList(num);
         closeModals();
       }
@@ -315,7 +307,7 @@
       } else if (data.length === 0) {
         alert("ルームナンバーかパスワードが違います");
       } else {
-        alert(`ルームに参加しました！`);
+        alert(`ルーム「${data[0].room_name}」に参加しました！`);
         addRoomToList(num);
         closeModals();
       }
@@ -329,7 +321,8 @@
       showRoomList();
     }
 
-    function showRoomList() {
+    // 🌟 データベースからルーム名を取得して表示するように変更
+    async function showRoomList() {
       currentRoomNumber = null;
       document.getElementById('roomListView').style.display = 'flex';
       document.getElementById('chatView').style.display = 'none';
@@ -337,37 +330,53 @@
       document.getElementById('headerTitle').textContent = 'トーク';
       
       const listEl = document.getElementById('roomList');
-      listEl.innerHTML = '';
+      
       if (myRooms.length === 0) {
         listEl.innerHTML = '<p style="text-align: center; color: #999; margin-top: 20px;">参加中のルームはありません</p>';
       } else {
-        myRooms.forEach(num => {
-          listEl.innerHTML += `
-            <div class="room-item" onclick="openChat('${num}')">
-              <div class="room-name">ルーム No. ${num}</div>
-              <div>➔</div>
-            </div>
-          `;
-        });
+        listEl.innerHTML = '<p style="text-align: center; color: #999; margin-top: 20px;">読み込み中...</p>';
+        
+        // 保存しているルームナンバーを使って、DBからルーム名を引っ張ってくる
+        const { data, error } = await supabaseClient.from('rooms')
+          .select('room_number, room_name')
+          .in('room_number', myRooms);
+
+        listEl.innerHTML = '';
+        if (data && data.length > 0) {
+          data.forEach(room => {
+            listEl.innerHTML += `
+              <div class="room-item" onclick="openChat('${room.room_number}', '${escapeHtml(room.room_name)}')">
+                <div>
+                  <div class="room-name">${escapeHtml(room.room_name)}</div>
+                  <div class="room-number">No. ${room.room_number}</div>
+                </div>
+                <div>➔</div>
+              </div>
+            `;
+          });
+        } else {
+          listEl.innerHTML = '<p style="text-align: center; color: #999; margin-top: 20px;">参加中のルームはありません</p>';
+        }
       }
       if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
     }
 
-    // --- チャット関連 ---
-    function openChat(roomNum) {
+    // 🌟 チャットを開くとき、ヘッダーのタイトルをルーム名にするように変更
+    function openChat(roomNum, roomName) {
       currentRoomNumber = roomNum;
       document.getElementById('roomListView').style.display = 'none';
       document.getElementById('chatView').style.display = 'flex';
       document.getElementById('backBtn').style.display = 'flex'; 
-      document.getElementById('headerTitle').textContent = `No.${roomNum}`; 
+      document.getElementById('headerTitle').textContent = roomName; // ヘッダーをルーム名に！
       fetchMessages();
       subscribeToNewMessages();
     }
 
+    // --- チャット関連 ---
     async function fetchMessages() {
       document.getElementById('chatBox').innerHTML = '';
       const { data } = await supabaseClient.from('messages').select('*')
-        .eq('room_number', currentRoomNumber) // 今のルームだけのメッセージを取得
+        .eq('room_number', currentRoomNumber)
         .order('created_at', { ascending: true }).limit(50);
       if (data) data.forEach(msg => renderMessage(msg));
     }
@@ -380,7 +389,6 @@
       textInput.value = '';
       const currentName = currentUser.user_metadata.display_name || '名無し';
 
-      // 送信時にroom_numberも一緒に保存する
       const { data } = await supabaseClient.from('messages').insert([{ 
         username: currentName, 
         text: text,
