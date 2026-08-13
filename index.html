@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Roomie ver.1.00</title>
+  <title>Roomie ver.1.10</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -114,8 +114,60 @@
     .chat-user-info button { background: none; border: 1px solid #fff; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; margin-left: 4px; }
     
     .chat-messages { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-    .msg { background: #f0f2f5; padding: 10px 14px; border-radius: 12px; max-width: 80%; word-break: break-word; font-size: 14px; align-self: flex-start; }
+    
+    .msg-wrapper {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      max-width: 85%;
+      align-self: flex-start; 
+    }
+
+    .msg-wrapper.my-msg-wrapper {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .msg { background: #f0f2f5; padding: 10px 14px; border-radius: 12px; word-break: break-word; font-size: 14px; }
     .msg .author { font-size: 11px; font-weight: bold; color: #3ecf8e; margin-bottom: 2px; }
+    
+    .msg-wrapper.my-msg-wrapper .msg {
+      background: #dcf8c6;
+    }
+    .msg-wrapper.my-msg-wrapper .msg .author {
+      display: none;
+    }
+
+    .time-area {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .my-msg-wrapper .time-area {
+      align-items: flex-end;
+    }
+
+    .time {
+      font-size: 10px;
+      color: #999;
+      white-space: nowrap;
+    }
+    
+    /* 🌟 削除ボタンの色を灰色（#999）に変更 */
+    .delete-btn {
+      font-size: 10px;
+      color: #999;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      margin-top: 4px;
+    }
+    .delete-btn:hover {
+      text-decoration: underline;
+      color: #666; /* ホバー時は少し濃い灰色に */
+    }
     
     .chat-input-area { padding: 12px; border-top: 1px solid #eee; display: flex; gap: 8px; background: #fff; }
     .chat-input-area input { flex: 1; margin-bottom: 0; }
@@ -132,7 +184,7 @@
     <div class="card">
       <h3>🔒 Roomie</h3>
       <p>パスワードを入力してください</p>
-      <input type="password" id="appPassInput" placeholder="パスワードを入力"" onkeypress="if(event.key==='Enter') checkAppPassword()">
+      <input type="password" id="appPassInput" placeholder="パスワードを入力" onkeypress="if(event.key==='Enter') checkAppPassword()">
       <div class="error-msg" id="appErrorMsg"></div>
       <button class="primary-btn" onclick="checkAppPassword()">入室する</button>
     </div>
@@ -208,7 +260,7 @@
         document.getElementById('appErrorMsg').textContent = '';
         checkSession(); 
       } else {
-        document.getElementById('appErrorMsg').textContent = 'パスワードが違います';
+        document.getElementById('appErrorMsg').textContent = '合言葉が違います';
       }
     }
 
@@ -312,6 +364,7 @@
         } else {
           currentUser = data.user;
           updateHeaderName();
+          fetchMessages();
           alert('名前を変更しました！');
         }
       }
@@ -358,6 +411,29 @@
       if (data && data.length > 0) renderMessage(data[0]);
     }
 
+    async function deleteMessage(msgId) {
+      const confirmDelete = confirm('このメッセージを削除しますか？');
+      if (!confirmDelete) return;
+
+      const { error } = await supabaseClient
+        .from('messages')
+        .delete()
+        .eq('id', msgId);
+
+      if (error) {
+        alert('削除エラーが発生しました。Supabaseの権限設定を確認してください。\n' + error.message);
+      } else {
+        removeMessageElement(msgId);
+      }
+    }
+
+    function removeMessageElement(msgId) {
+      const el = document.getElementById('msg-' + msgId);
+      if (el) {
+        el.remove();
+      }
+    }
+
     function subscribeToNewMessages() {
       if (realtimeChannel) {
         supabaseClient.removeChannel(realtimeChannel);
@@ -368,9 +444,13 @@
       realtimeChannel
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'messages' },
+          { event: '*', schema: 'public', table: 'messages' },
           (payload) => {
-            renderMessage(payload.new);
+            if (payload.eventType === 'INSERT') {
+              renderMessage(payload.new);
+            } else if (payload.eventType === 'DELETE') {
+              removeMessageElement(payload.old.id);
+            }
           }
         )
         .subscribe((status, err) => {
@@ -385,14 +465,41 @@
         return;
       }
 
-      const msgDiv = document.createElement('div');
-      msgDiv.className = 'msg';
+      const wrapperDiv = document.createElement('div');
+      wrapperDiv.className = 'msg-wrapper';
+      
+      const currentName = currentUser ? (currentUser.user_metadata.display_name || '名無し') : '';
+      let deleteHtml = '';
+
+      if (msg.username === currentName) {
+        wrapperDiv.classList.add('my-msg-wrapper');
+        deleteHtml = `<button class="delete-btn" onclick="deleteMessage(${msg.id})">削除</button>`;
+      }
+
       if (msg.id) {
-        msgDiv.id = 'msg-' + msg.id;
+        wrapperDiv.id = 'msg-' + msg.id;
+      }
+
+      let timeString = '';
+      if (msg.created_at) {
+        const date = new Date(msg.created_at);
+        const hours = date.getHours().toString().padStart(2, '0');
+        const minutes = date.getMinutes().toString().padStart(2, '0');
+        timeString = `${hours}:${minutes}`;
       }
       
-      msgDiv.innerHTML = `<div class="author">${escapeHtml(msg.username)}</div><div class="text">${escapeHtml(msg.text)}</div>`;
-      chatBox.appendChild(msgDiv);
+      wrapperDiv.innerHTML = `
+        <div class="msg">
+          <div class="author">${escapeHtml(msg.username)}</div>
+          <div class="text">${escapeHtml(msg.text)}</div>
+        </div>
+        <div class="time-area">
+          <div class="time">${timeString}</div>
+          ${deleteHtml}
+        </div>
+      `;
+
+      chatBox.appendChild(wrapperDiv);
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
