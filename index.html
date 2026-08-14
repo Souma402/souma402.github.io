@@ -146,7 +146,10 @@
     /* メッセージの吹き出し */
     .msg-wrapper { display: flex; align-items: flex-end; gap: 6px; max-width: 85%; align-self: flex-start; }
     .msg-wrapper.my-msg-wrapper { align-self: flex-end; flex-direction: row-reverse; }
-    .msg { background: #f0f2f5; padding: 12px 16px; border-radius: 12px; word-break: break-word; font-size: 16px; line-height: 1.4; }
+    
+    /* ★修正: white-space: pre-wrap; を追加して改行が反映されるようにした */
+    .msg { background: #f0f2f5; padding: 12px 16px; border-radius: 12px; word-break: break-word; font-size: 16px; line-height: 1.4; white-space: pre-wrap; }
+    
     .msg .author { font-size: 13px; font-weight: bold; color: #3ecf8e; margin-bottom: 4px; }
     .msg-wrapper.my-msg-wrapper .msg { background: #dcf8c6; }
     .msg-wrapper.my-msg-wrapper .msg .author { display: none; }
@@ -366,7 +369,7 @@
         myRooms = currentUser.user_metadata.my_rooms || [];
         document.getElementById('appCard').style.display = 'flex';
         
-        // ★OneSignalにログインユーザーを紐づけ
+        // OneSignalにログインユーザーを紐づけ
         OneSignalDeferred.push(function(OneSignal) {
           OneSignal.login(currentUser.id);
         });
@@ -403,7 +406,7 @@
         document.getElementById('authModal').style.display = 'none';
         document.getElementById('appCard').style.display = 'flex';
         
-        // ★OneSignalにログインユーザーを紐づけ
+        // OneSignalにログインユーザーを紐づけ
         OneSignalDeferred.push(function(OneSignal) {
           OneSignal.login(currentUser.id);
         });
@@ -498,7 +501,7 @@
         myRooms.push(String(num));
         await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
         
-        // ★OneSignalに「このルームの通知を受け取る」タグを追加
+        // OneSignalに「このルームの通知を受け取る」タグを追加
         OneSignalDeferred.push(function(OneSignal) {
           OneSignal.User.addTag("room_" + num, "true");
         });
@@ -515,7 +518,7 @@
       myRooms = myRooms.filter(r => r !== String(num));
       await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
       
-      // ★OneSignalから「このルームの通知を受け取る」タグを削除
+      // OneSignalから「このルームの通知を受け取る」タグを削除
       OneSignalDeferred.push(function(OneSignal) {
         OneSignal.User.removeTag("room_" + num);
       });
@@ -631,8 +634,12 @@
     }
 
     function appendMessage(msg) {
-      console.log("★届いたデータ:", msg);
+      // ★修正: contentかmessageのどちらかにテキストが入っているか確認
+      const messageText = msg.content || msg.message || '';
       
+      // ★修正: テキストが完全に空っぽの場合は、画面に描画しない（古いバグデータの非表示）
+      if (!messageText) return;
+
       const box = document.getElementById('chatBox');
       const div = document.createElement('div');
       div.id = `msg-${msg.id}`;
@@ -645,7 +652,7 @@
       div.innerHTML = `
         <div class="msg">
           <div class="author">${escapeHtml(msg.user_name)}</div>
-          <div>${escapeHtml(msg.content)}</div>
+          <div>${escapeHtml(messageText)}</div>
         </div>
         <div class="time-area">
           <div class="time">${time}</div>
