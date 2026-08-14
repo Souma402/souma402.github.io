@@ -3,8 +3,40 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Roomie 快適なチャットをあなたに</title>
+  <title>Roomie - 快適なチャットをあなたに</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- PWA用の追記 -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#3ecf8e">
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <script>
+    // Service Workerの登録
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('Service Worker 登録成功:', reg.scope))
+          .catch(err => console.log('Service Worker 登録失敗:', err));
+      });
+    }
+  </script>
+
+  <!-- OneSignal SDK -->
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+  <script>
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: "9dfedfe4-77c1-4ec0-8b2c-8e2fb43b948e",
+        safari_web_id: "web.onesignal.auto.064b44a8-1dd7-4e10-9d87-452ef5b9c9dd",
+        notifyButton: {
+          enable: true,
+        },
+      });
+    });
+  </script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
@@ -333,6 +365,12 @@
         currentUser = session.user;
         myRooms = currentUser.user_metadata.my_rooms || [];
         document.getElementById('appCard').style.display = 'flex';
+        
+        // ★OneSignalにログインユーザーを紐づけ
+        OneSignalDeferred.push(function(OneSignal) {
+          OneSignal.login(currentUser.id);
+        });
+        
         showRoomList();
       } else {
         document.getElementById('authModal').style.display = 'flex';
@@ -364,6 +402,12 @@
         myRooms = currentUser.user_metadata.my_rooms || [];
         document.getElementById('authModal').style.display = 'none';
         document.getElementById('appCard').style.display = 'flex';
+        
+        // ★OneSignalにログインユーザーを紐づけ
+        OneSignalDeferred.push(function(OneSignal) {
+          OneSignal.login(currentUser.id);
+        });
+
         showRoomList();
       }
     }
@@ -373,6 +417,12 @@
     async function executeLogout() {
       await supabaseClient.auth.signOut();
       currentUser = null;
+      
+      // ログアウト時にOneSignalからもログアウト
+      OneSignalDeferred.push(function(OneSignal) {
+        OneSignal.logout();
+      });
+
       closeLogoutConfirm();
       location.reload(); 
     }
@@ -447,6 +497,11 @@
       if (!myRooms.includes(String(num))) {
         myRooms.push(String(num));
         await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
+        
+        // ★OneSignalに「このルームの通知を受け取る」タグを追加
+        OneSignalDeferred.push(function(OneSignal) {
+          OneSignal.User.addTag("room_" + num, "true");
+        });
       }
       showRoomList();
     }
@@ -459,6 +514,12 @@
 
       myRooms = myRooms.filter(r => r !== String(num));
       await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
+      
+      // ★OneSignalから「このルームの通知を受け取る」タグを削除
+      OneSignalDeferred.push(function(OneSignal) {
+        OneSignal.User.removeTag("room_" + num);
+      });
+      
       showRoomList(); 
     }
 
@@ -495,107 +556,130 @@
                   <button class="delete-room-btn" onclick="removeRoomFromList(event, '${room.room_number}', '${safeName}')" title="リストから削除">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                   </button>
-                  <div style="color: #999; margin-left: 4px;">➔</div>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
                 </div>
               </div>
             `;
           });
         } else {
-          listEl.innerHTML = '<p style="text-align: center; color: #999; margin-top: 20px;">参加中のルームはありません</p>';
+          listEl.innerHTML = '<p style="text-align: center; color: #999; margin-top: 20px;">ルームが見つかりません</p>';
         }
       }
-      if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
-    }
 
-    function openChat(roomNum, roomName) {
-      currentRoomNumber = roomNum;
-      
-      document.getElementById('appCard').dataset.state = 'chat';
-      document.getElementById('headerTitle').textContent = roomName; 
-      
-      document.getElementById('chatActiveArea').style.display = 'flex';
-      document.getElementById('chatEmptyArea').style.display = 'none';
-      
-      fetchMessages();
-      subscribeToNewMessages();
+      if (realtimeChannel) {
+        supabaseClient.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
     }
 
     // --- チャット関連 ---
-    async function fetchMessages() {
-      document.getElementById('chatBox').innerHTML = '';
-      const { data } = await supabaseClient.from('messages').select('*')
+    async function openChat(num, name) {
+      currentRoomNumber = num;
+      document.getElementById('headerTitle').textContent = name;
+      
+      document.getElementById('chatEmptyArea').style.display = 'none';
+      document.getElementById('chatActiveArea').style.display = 'flex';
+      
+      // スマホ表示用（右ペインに切り替え）
+      document.getElementById('appCard').dataset.state = 'chat';
+      
+      document.getElementById('chatBox').innerHTML = '<p style="text-align:center; color:#999;">読み込み中...</p>';
+      
+      // 過去メッセージ取得
+      const { data } = await supabaseClient.from('messages')
+        .select('*')
         .eq('room_number', currentRoomNumber)
-        .order('created_at', { ascending: true }).limit(50);
-      if (data) data.forEach(msg => renderMessage(msg));
+        .order('created_at', { ascending: true });
+
+      const box = document.getElementById('chatBox');
+      box.innerHTML = '';
+      if (data) data.forEach(msg => appendMessage(msg));
+      scrollToBottom();
+
+      // リアルタイム購読
+      if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+      realtimeChannel = supabaseClient.channel(`room_${currentRoomNumber}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_number=eq.${currentRoomNumber}` }, payload => {
+           appendMessage(payload.new);
+           scrollToBottom();
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
+           removeMessageFromUI(payload.old.id);
+        })
+        .subscribe();
     }
 
     async function sendMessage() {
-      const textInput = document.getElementById('messageInput');
-      const text = textInput.value.trim();
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
       if (!text || !currentRoomNumber) return;
 
-      textInput.value = '';
-      const currentName = currentUser.user_metadata.display_name || '名無し';
-
-      const { data } = await supabaseClient.from('messages').insert([{ 
-        username: currentName, 
-        text: text,
-        room_number: currentRoomNumber
-      }]).select();
-
-      if (data && data.length > 0) renderMessage(data[0]);
+      input.value = '';
+      
+      const { error } = await supabaseClient.from('messages').insert([{
+        room_number: currentRoomNumber,
+        user_name: currentUser.user_metadata.display_name,
+        content: text,
+        user_id: currentUser.id
+      }]);
+      
+      if(error) await customAlert("送信失敗: " + error.message, "エラー");
     }
 
     async function deleteMessage(msgId) {
-      const isOk = await customConfirm('このメッセージを削除しますか？', '削除の確認', '削除する');
+      const isOk = await customConfirm("このメッセージを削除しますか？\n（相手の画面からも消えます）", "メッセージ削除", "削除する");
       if (!isOk) return;
 
       const { error } = await supabaseClient.from('messages').delete().eq('id', msgId);
-      if (!error) document.getElementById('msg-' + msgId)?.remove();
+      if (error) {
+        await customAlert("削除失敗: " + error.message, "エラー");
+      }
     }
 
-    // 💡【修正箇所】 フィルターを外して、すべての変更を受け取ってからJavascript側で振り分けるように変更しました
-    function subscribeToNewMessages() {
-      if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+    function appendMessage(msg) {
+      const box = document.getElementById('chatBox');
+      const div = document.createElement('div');
       
-      realtimeChannel = supabaseClient.channel('public:messages')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, 
-          (payload) => {
-            if (payload.eventType === 'INSERT') {
-              // 追加されたメッセージが、現在見ているルームのものなら表示する
-              if (String(payload.new.room_number) === String(currentRoomNumber)) {
-                renderMessage(payload.new);
-              }
-            }
-            else if (payload.eventType === 'DELETE') {
-              // 削除されたメッセージのIDが画面上に存在すれば消す
-              const msgElement = document.getElementById('msg-' + payload.old.id);
-              if (msgElement) msgElement.remove();
-            }
-          }
-        ).subscribe();
-    }
-
-    function renderMessage(msg) {
-      if (document.getElementById('msg-' + msg.id)) return;
-      const chatBox = document.getElementById('chatBox');
-      const isMyMsg = msg.username === (currentUser?.user_metadata?.display_name || '');
+      const isMyMsg = currentUser && msg.user_id === currentUser.id;
+      div.className = 'msg-wrapper ' + (isMyMsg ? 'my-msg-wrapper' : '');
+      div.id = `msg-${msg.id}`; 
       
       const timeStr = new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      const deleteHtml = isMyMsg ? `<button class="delete-btn" onclick="deleteMessage(${msg.id})">削除</button>` : '';
       
-      const div = document.createElement('div');
-      div.className = `msg-wrapper ${isMyMsg ? 'my-msg-wrapper' : ''}`;
-      div.id = 'msg-' + msg.id;
+      let deleteBtnHTML = '';
+      if (isMyMsg) {
+        deleteBtnHTML = `<button class="delete-btn" onclick="deleteMessage(${msg.id})">送信取消</button>`;
+      }
+      
       div.innerHTML = `
-        <div class="msg"><div class="author">${escapeHtml(msg.username)}</div><div class="text">${escapeHtml(msg.text)}</div></div>
-        <div class="time-area"><div class="time">${timeStr}</div>${deleteHtml}</div>
+        <div class="msg">
+          <div class="author">${escapeHtml(msg.user_name)}</div>
+          <div>${escapeHtml(msg.content)}</div>
+        </div>
+        <div class="time-area">
+          <div class="time">${timeStr}</div>
+          ${deleteBtnHTML}
+        </div>
       `;
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
+      box.appendChild(div);
+    }
+    
+    function removeMessageFromUI(msgId) {
+      const el = document.getElementById(`msg-${msgId}`);
+      if (el) el.remove();
     }
 
-    function escapeHtml(str) { return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+    function scrollToBottom() {
+      const box = document.getElementById('chatBox');
+      setTimeout(() => box.scrollTop = box.scrollHeight, 50);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
   </script>
 </body>
 </html>
