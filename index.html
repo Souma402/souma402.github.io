@@ -124,7 +124,7 @@
     .my-msg-wrapper .time-area { align-items: flex-end; }
     .time { font-size: 12px; color: #999; white-space: nowrap; }
     .delete-btn { font-size: 12px; color: #999; background: none; border: none; cursor: pointer; padding: 0; margin-top: 4px; }
-    .delete-btn:hover { text-decoration: underline; color: #666; }
+    .delete-btn:hover { text-decoration: underline; color: #ff4d4f; }
 
     @media screen and (max-width: 767px) {
       .app-card[data-state="chat"] .sidebar { display: none; }
@@ -536,7 +536,6 @@
 
       input.value = '';
 
-      // ★ カラム名を「message」に完全固定しました
       const payload = {
         room_number: currentRoomNumber,
         user_name: currentUser.user_metadata.display_name,
@@ -559,18 +558,25 @@
       }
     }
 
+    // ★ 修正点: 削除処理時に成功したら自分の画面からも直接消す
     async function deleteMessage(id) {
       const isOk = await customConfirm("このメッセージを削除しますか？", "削除の確認", "削除する");
       if (!isOk) return;
 
       const { error } = await supabaseClient.from('messages').delete().eq('id', id);
-      if (error) await customAlert("エラー: " + error.message, "削除エラー");
+
+      if (error) {
+        await customAlert("エラー: " + error.message, "削除エラー");
+      } else {
+        // データベースから消えたら自分の画面からも削除
+        const el = document.getElementById(`msg-${id}`);
+        if (el) el.remove();
+      }
     }
 
     function appendMessage(msg) {
       if (!msg) return;
 
-      // ★ 取得も「message」カラムから固定で行います
       const messageText = msg.message;
       if (!messageText) return;
 
