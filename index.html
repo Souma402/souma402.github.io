@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Roomie - 快適なチャットをあなたに</title>
+  <title>Roomie - オンラインチャット</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <!-- PWA用の追記 -->
@@ -201,8 +201,8 @@
   <div class="modal-overlay" id="appPasswordModal">
     <div class="card">
       <h3>🔒 Roomie</h3>
-      <p>パスワードを入力してください</p>
-      <input type="password" id="appPassInput" placeholder="パスワードを入力" onkeypress="if(event.key==='Enter') checkAppPassword()">
+      <p>アクセス合言葉を入力してください</p>
+      <input type="password" id="appPassInput" placeholder="合言葉 (jpcc)" onkeypress="if(event.key==='Enter') checkAppPassword()">
       <div class="error-msg" id="appErrorMsg"></div>
       <button class="primary-btn" onclick="checkAppPassword()">入室する</button>
     </div>
@@ -582,29 +582,25 @@
       
       // スマホ表示用（右ペインに切り替え）
       document.getElementById('appCard').dataset.state = 'chat';
-      
-      document.getElementById('chatBox').innerHTML = '<p style="text-align:center; color:#999;">読み込み中...</p>';
-      
-      // 過去メッセージ取得
-      const { data } = await supabaseClient.from('messages')
-        .select('*')
-        .eq('room_number', currentRoomNumber)
-        .order('created_at', { ascending: true });
 
       const box = document.getElementById('chatBox');
       box.innerHTML = '';
-      if (data) data.forEach(msg => appendMessage(msg));
-      scrollToBottom();
+      
+      const { data } = await supabaseClient.from('messages')
+        .select('*').eq('room_number', num).order('created_at', { ascending: true });
+        
+      if(data) data.forEach(appendMessage);
 
-      // リアルタイム購読
-      if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
-      realtimeChannel = supabaseClient.channel(`room_${currentRoomNumber}`)
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_number=eq.${currentRoomNumber}` }, payload => {
-           appendMessage(payload.new);
-           scrollToBottom();
-        })
-        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, payload => {
-           removeMessageFromUI(payload.old.id);
+      if (realtimeChannel) {
+        supabaseClient.removeChannel(realtimeChannel);
+      }
+      realtimeChannel = supabaseClient.channel('custom-all-channel')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `room_number=eq.${num}` }, payload => {
+          if (payload.eventType === 'INSERT') appendMessage(payload.new);
+          if (payload.eventType === 'DELETE') {
+            const el = document.getElementById(`msg-${payload.old.id}`);
+            if (el) el.remove();
+          }
         })
         .subscribe();
     }
@@ -615,71 +611,61 @@
       if (!text || !currentRoomNumber) return;
 
       input.value = '';
-      
+
       const { error } = await supabaseClient.from('messages').insert([{
         room_number: currentRoomNumber,
         user_name: currentUser.user_metadata.display_name,
         content: text,
         user_id: currentUser.id
       }]);
-      
-      if(error) await customAlert("送信失敗: " + error.message, "エラー");
+
+      if (error) await customAlert('エラー: ' + error.message, "送信エラー");
     }
 
-    async function deleteMessage(msgId) {
-      const isOk = await customConfirm("このメッセージを削除しますか？\n（相手の画面からも消えます）", "メッセージ削除", "削除する");
+    async function deleteMessage(id) {
+      const isOk = await customConfirm("このメッセージを削除しますか？", "削除の確認", "削除する");
       if (!isOk) return;
 
-      const { error } = await supabaseClient.from('messages').delete().eq('id', msgId);
-      if (error) {
-        await customAlert("削除失敗: " + error.message, "エラー");
-      }
+      const { error } = await supabaseClient.from('messages').delete().eq('id', id);
+      if (error) await customAlert("エラー: " + error.message, "削除エラー");
     }
 
     function appendMessage(msg) {
+      console.log("★届いたデータ:", msg);
+      
       const box = document.getElementById('chatBox');
       const div = document.createElement('div');
+      div.id = `msg-${msg.id}`;
       
-      const isMyMsg = currentUser && msg.user_id === currentUser.id;
-      div.className = 'msg-wrapper ' + (isMyMsg ? 'my-msg-wrapper' : '');
-      div.id = `msg-${msg.id}`; 
+      const isMine = (msg.user_id === currentUser.id);
+      div.className = isMine ? 'msg-wrapper my-msg-wrapper' : 'msg-wrapper';
       
-      const timeStr = new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      
-      let deleteBtnHTML = '';
-      if (isMyMsg) {
-        deleteBtnHTML = `<button class="delete-btn" onclick="deleteMessage(${msg.id})">送信取消</button>`;
-      }
-      
+      const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
       div.innerHTML = `
         <div class="msg">
           <div class="author">${escapeHtml(msg.user_name)}</div>
           <div>${escapeHtml(msg.content)}</div>
         </div>
         <div class="time-area">
-          <div class="time">${timeStr}</div>
-          ${deleteBtnHTML}
+          <div class="time">${time}</div>
+          ${isMine ? `<button class="delete-btn" onclick="deleteMessage('${msg.id}')">削除</button>` : ''}
         </div>
       `;
+      
       box.appendChild(div);
-    }
-    
-    function removeMessageFromUI(msgId) {
-      const el = document.getElementById(`msg-${msgId}`);
-      if (el) el.remove();
-    }
-
-    function scrollToBottom() {
-      const box = document.getElementById('chatBox');
-      setTimeout(() => box.scrollTop = box.scrollHeight, 50);
+      setTimeout(() => { box.scrollTop = box.scrollHeight; }, 50);
     }
 
     function escapeHtml(str) {
-      return str.replace(/[&<>"']/g, function(m) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, function(m) {
         return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
       });
     }
 
+    // --- 起動 ---
+    window.onload = checkAppPassword;
   </script>
 </body>
 </html>
