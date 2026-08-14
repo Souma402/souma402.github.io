@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Roomie 快適なチャットをあなたに</title>
+  <title>Roomie - オンラインチャット</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -169,8 +169,8 @@
   <div class="modal-overlay" id="appPasswordModal">
     <div class="card">
       <h3>🔒 Roomie</h3>
-      <p>パスワードを入力してください</p>
-      <input type="password" id="appPassInput" placeholder="パスワードを入力" onkeypress="if(event.key==='Enter') checkAppPassword()">
+      <p>アクセス合言葉を入力してください</p>
+      <input type="password" id="appPassInput" placeholder="合言葉 (jpcc)" onkeypress="if(event.key==='Enter') checkAppPassword()">
       <div class="error-msg" id="appErrorMsg"></div>
       <button class="primary-btn" onclick="checkAppPassword()">入室する</button>
     </div>
@@ -554,13 +554,24 @@
       if (!error) document.getElementById('msg-' + msgId)?.remove();
     }
 
+    // 💡【修正箇所】 フィルターを外して、すべての変更を受け取ってからJavascript側で振り分けるように変更しました
     function subscribeToNewMessages() {
       if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
+      
       realtimeChannel = supabaseClient.channel('public:messages')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `room_number=eq.${currentRoomNumber}` },
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, 
           (payload) => {
-            if (payload.eventType === 'INSERT') renderMessage(payload.new);
-            else if (payload.eventType === 'DELETE') document.getElementById('msg-' + payload.old.id)?.remove();
+            if (payload.eventType === 'INSERT') {
+              // 追加されたメッセージが、現在見ているルームのものなら表示する
+              if (String(payload.new.room_number) === String(currentRoomNumber)) {
+                renderMessage(payload.new);
+              }
+            }
+            else if (payload.eventType === 'DELETE') {
+              // 削除されたメッセージのIDが画面上に存在すれば消す
+              const msgElement = document.getElementById('msg-' + payload.old.id);
+              if (msgElement) msgElement.remove();
+            }
           }
         ).subscribe();
     }
