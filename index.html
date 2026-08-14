@@ -13,7 +13,7 @@
       display: flex; 
       justify-content: center; 
       align-items: center; 
-      height: 100vh; /* フォールバック */
+      height: 100vh;
       height: 100dvh; 
       margin: 0;
       overflow: hidden;
@@ -48,7 +48,7 @@
        ========================================= */
     .app-card { 
       width: 100%; height: 100%; background: #fff; display: none; 
-      flex-direction: row; /* 基本は横並び */
+      flex-direction: row; 
       overflow: hidden; position: relative;
     }
     
@@ -111,20 +111,16 @@
     .chat-input-area input { flex: 1; margin-bottom: 0; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
     .chat-input-area button { background: #3ecf8e; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-    /* メッセージの吹き出し（文字を大きく調整） */
+    /* メッセージの吹き出し */
     .msg-wrapper { display: flex; align-items: flex-end; gap: 6px; max-width: 85%; align-self: flex-start; }
     .msg-wrapper.my-msg-wrapper { align-self: flex-end; flex-direction: row-reverse; }
-    /* font-size, line-height, padding を大きくして読みやすく */
     .msg { background: #f0f2f5; padding: 12px 16px; border-radius: 12px; word-break: break-word; font-size: 16px; line-height: 1.4; }
-    /* 名前のフォントサイズもアップ */
     .msg .author { font-size: 13px; font-weight: bold; color: #3ecf8e; margin-bottom: 4px; }
     .msg-wrapper.my-msg-wrapper .msg { background: #dcf8c6; }
     .msg-wrapper.my-msg-wrapper .msg .author { display: none; }
     .time-area { display: flex; flex-direction: column; align-items: flex-start; }
     .my-msg-wrapper .time-area { align-items: flex-end; }
-    /* 時間のフォントサイズもアップ */
     .time { font-size: 12px; color: #999; white-space: nowrap; }
-    /* 削除ボタンのフォントサイズもアップ */
     .delete-btn { font-size: 12px; color: #999; background: none; border: none; cursor: pointer; padding: 0; margin-top: 4px; }
     .delete-btn:hover { text-decoration: underline; color: #666; }
 
@@ -265,7 +261,8 @@
     let currentRoomNumber = null;
     let realtimeChannel = null;
     
-    let myRooms = JSON.parse(localStorage.getItem('myRooms')) || [];
+    // localStorageの代わりにユーザーのアカウントに紐付けるため、空配列で初期化します
+    let myRooms = [];
 
     // --- 認証 ---
     function nameToEmail(username) { return `${encodeURIComponent(username.trim().toLowerCase())}@roomie.app`; }
@@ -283,6 +280,8 @@
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
         currentUser = session.user;
+        // アカウント情報（メタデータ）からルームリストを取得
+        myRooms = currentUser.user_metadata.my_rooms || [];
         document.getElementById('appCard').style.display = 'flex';
         showRoomList();
       } else {
@@ -304,7 +303,8 @@
       if (!username || !password) return;
 
       const email = nameToEmail(username);
-      const func = isSignUpMode ? supabaseClient.auth.signUp({ email, password, options: { data: { display_name: username } } }) 
+      // アカウント作成時は、my_roomsを空配列として初期設定する
+      const func = isSignUpMode ? supabaseClient.auth.signUp({ email, password, options: { data: { display_name: username, my_rooms: [] } } }) 
                                 : supabaseClient.auth.signInWithPassword({ email, password });
       
       const { data, error } = await func;
@@ -312,6 +312,8 @@
         document.getElementById('authErrorMsg').textContent = 'エラー: ' + error.message;
       } else {
         currentUser = data.user;
+        // ログイン成功時にアカウント情報（メタデータ）からルームリストを取得
+        myRooms = currentUser.user_metadata.my_rooms || [];
         document.getElementById('authModal').style.display = 'none';
         document.getElementById('appCard').style.display = 'flex';
         showRoomList();
@@ -362,7 +364,7 @@
         alert("エラー: " + error.message);
       } else {
         alert(`ルーム「${name}」を作成しました！`);
-        addRoomToList(num);
+        await addRoomToList(num);
         closeModals();
       }
     }
@@ -380,25 +382,27 @@
         alert("ルームナンバーかパスワードが違います");
       } else {
         alert(`ルーム「${data[0].room_name}」に参加しました！`);
-        addRoomToList(num);
+        await addRoomToList(num);
         closeModals();
       }
     }
 
-    function addRoomToList(num) {
-      if (!myRooms.includes(num)) {
+    async function addRoomToList(num) {
+      if (!myRooms.includes(String(num))) {
         myRooms.push(String(num));
-        localStorage.setItem('myRooms', JSON.stringify(myRooms));
+        // アカウントのデータに保存
+        await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
       }
       showRoomList();
     }
 
-    function removeRoomFromList(event, num, name) {
+    async function removeRoomFromList(event, num, name) {
       event.stopPropagation(); 
       if (!confirm(`ルーム「${name}」を一覧から削除しますか？\n※退室するだけで、ルーム自体は消えません。再度パスワードで参加可能です。`)) return;
 
       myRooms = myRooms.filter(r => r !== String(num));
-      localStorage.setItem('myRooms', JSON.stringify(myRooms));
+      // アカウントのデータを更新
+      await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
       showRoomList(); 
     }
 
