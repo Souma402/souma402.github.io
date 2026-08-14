@@ -145,6 +145,26 @@
 </head>
 <body>
 
+  <!-- カスタムアラート・確認用モーダル (一番手前に表示) -->
+  <div class="modal-overlay" id="customAlertModal" style="display: none; z-index: 1100;">
+    <div class="card">
+      <h3 id="customAlertTitle">お知らせ</h3>
+      <p id="customAlertMessage" style="margin-bottom: 20px; white-space: pre-wrap; font-size: 14px; color: #333;"></p>
+      <button class="primary-btn" onclick="closeCustomAlert()">OK</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="customConfirmModal" style="display: none; z-index: 1100;">
+    <div class="card">
+      <h3 id="customConfirmTitle">確認</h3>
+      <p id="customConfirmMessage" style="margin-bottom: 20px; white-space: pre-wrap; font-size: 14px; color: #333;"></p>
+      <div class="button-group">
+        <button class="primary-btn cancel-btn" onclick="closeCustomConfirm(false)">キャンセル</button>
+        <button class="primary-btn danger-btn" id="customConfirmOkBtn" onclick="closeCustomConfirm(true)">OK</button>
+      </div>
+    </div>
+  </div>
+
   <!-- モーダル群 -->
   <div class="modal-overlay" id="appPasswordModal">
     <div class="card">
@@ -260,9 +280,40 @@
     let currentUser = null;
     let currentRoomNumber = null;
     let realtimeChannel = null;
-    
-    // localStorageの代わりにユーザーのアカウントに紐付けるため、空配列で初期化します
     let myRooms = [];
+
+    // --- カスタムアラート・確認用関数 ---
+    let alertResolve = null;
+    let confirmResolve = null;
+
+    function customAlert(message, title = 'お知らせ') {
+      return new Promise((resolve) => {
+        document.getElementById('customAlertTitle').textContent = title;
+        document.getElementById('customAlertMessage').textContent = message;
+        document.getElementById('customAlertModal').style.display = 'flex';
+        alertResolve = resolve;
+      });
+    }
+
+    function closeCustomAlert() {
+      document.getElementById('customAlertModal').style.display = 'none';
+      if (alertResolve) alertResolve();
+    }
+
+    function customConfirm(message, title = '確認', okText = 'OK') {
+      return new Promise((resolve) => {
+        document.getElementById('customConfirmTitle').textContent = title;
+        document.getElementById('customConfirmMessage').textContent = message;
+        document.getElementById('customConfirmOkBtn').textContent = okText;
+        document.getElementById('customConfirmModal').style.display = 'flex';
+        confirmResolve = resolve;
+      });
+    }
+
+    function closeCustomConfirm(result) {
+      document.getElementById('customConfirmModal').style.display = 'none';
+      if (confirmResolve) confirmResolve(result);
+    }
 
     // --- 認証 ---
     function nameToEmail(username) { return `${encodeURIComponent(username.trim().toLowerCase())}@roomie.app`; }
@@ -280,7 +331,6 @@
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
         currentUser = session.user;
-        // アカウント情報（メタデータ）からルームリストを取得
         myRooms = currentUser.user_metadata.my_rooms || [];
         document.getElementById('appCard').style.display = 'flex';
         showRoomList();
@@ -303,7 +353,6 @@
       if (!username || !password) return;
 
       const email = nameToEmail(username);
-      // アカウント作成時は、my_roomsを空配列として初期設定する
       const func = isSignUpMode ? supabaseClient.auth.signUp({ email, password, options: { data: { display_name: username, my_rooms: [] } } }) 
                                 : supabaseClient.auth.signInWithPassword({ email, password });
       
@@ -312,7 +361,6 @@
         document.getElementById('authErrorMsg').textContent = 'エラー: ' + error.message;
       } else {
         currentUser = data.user;
-        // ログイン成功時にアカウント情報（メタデータ）からルームリストを取得
         myRooms = currentUser.user_metadata.my_rooms || [];
         document.getElementById('authModal').style.display = 'none';
         document.getElementById('appCard').style.display = 'flex';
@@ -352,7 +400,11 @@
       const name = document.getElementById('newRoomName').value.trim() || '無名のルーム';
       const num = document.getElementById('newRoomNumber').value;
       const pass = document.getElementById('newRoomPassword').value;
-      if(!pass) return alert("パスワードを入力してください");
+      
+      if(!pass) {
+        await customAlert("パスワードを入力してください", "入力エラー");
+        return;
+      }
 
       const { data, error } = await supabaseClient.from('rooms').insert([{ 
         room_number: num, 
@@ -361,9 +413,9 @@
       }]);
       
       if (error) {
-        alert("エラー: " + error.message);
+        await customAlert("エラー: " + error.message, "作成失敗");
       } else {
-        alert(`ルーム「${name}」を作成しました！`);
+        await customAlert(`ルーム「${name}」を作成しました！`, "作成成功");
         await addRoomToList(num);
         closeModals();
       }
@@ -372,16 +424,20 @@
     async function joinRoom() {
       const num = document.getElementById('joinRoomNumber').value;
       const pass = document.getElementById('joinRoomPassword').value;
-      if(!num || !pass) return alert("入力が足りません");
+      
+      if(!num || !pass) {
+        await customAlert("入力が足りません", "入力エラー");
+        return;
+      }
 
       const { data, error } = await supabaseClient.from('rooms').select('*').eq('room_number', num).eq('password', pass);
       
       if (error) {
-        alert("エラー: " + error.message);
+        await customAlert("エラー: " + error.message, "通信エラー");
       } else if (data.length === 0) {
-        alert("ルームナンバーかパスワードが違います");
+        await customAlert("ルームナンバーかパスワードが違います", "参加失敗");
       } else {
-        alert(`ルーム「${data[0].room_name}」に参加しました！`);
+        await customAlert(`ルーム「${data[0].room_name}」に参加しました！`, "参加成功");
         await addRoomToList(num);
         closeModals();
       }
@@ -390,7 +446,6 @@
     async function addRoomToList(num) {
       if (!myRooms.includes(String(num))) {
         myRooms.push(String(num));
-        // アカウントのデータに保存
         await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
       }
       showRoomList();
@@ -398,10 +453,11 @@
 
     async function removeRoomFromList(event, num, name) {
       event.stopPropagation(); 
-      if (!confirm(`ルーム「${name}」を一覧から削除しますか？\n※退室するだけで、ルーム自体は消えません。再度パスワードで参加可能です。`)) return;
+      
+      const isOk = await customConfirm(`ルーム「${name}」を一覧から削除しますか？\n※退室するだけで、ルーム自体は消えません。再度パスワードで参加可能です。`, "リストから削除", "削除する");
+      if (!isOk) return;
 
       myRooms = myRooms.filter(r => r !== String(num));
-      // アカウントのデータを更新
       await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
       showRoomList(); 
     }
@@ -491,7 +547,9 @@
     }
 
     async function deleteMessage(msgId) {
-      if(!confirm('削除しますか？')) return;
+      const isOk = await customConfirm('このメッセージを削除しますか？', '削除の確認', '削除する');
+      if (!isOk) return;
+
       const { error } = await supabaseClient.from('messages').delete().eq('id', msgId);
       if (!error) document.getElementById('msg-' + msgId)?.remove();
     }
