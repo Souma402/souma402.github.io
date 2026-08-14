@@ -6,13 +6,11 @@
   <title>Roomie - オンラインチャット</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
-  <!-- PWA用の追記 -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#3ecf8e">
   <link rel="apple-touch-icon" href="icon-192.png">
 
   <script>
-    // Service Workerの登録
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
@@ -22,7 +20,6 @@
     }
   </script>
 
-  <!-- OneSignal SDK -->
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <script>
     window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -30,9 +27,7 @@
       await OneSignal.init({
         appId: "9dfedfe4-77c1-4ec0-8b2c-8e2fb43b948e",
         safari_web_id: "web.onesignal.auto.064b44a8-1dd7-4e10-9d87-452ef5b9c9dd",
-        notifyButton: {
-          enable: true,
-        },
+        notifyButton: { enable: true },
       });
     });
   </script>
@@ -42,16 +37,10 @@
     body { 
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
       background: #f4f6f8; 
-      display: flex; 
-      justify-content: center; 
-      align-items: center; 
-      height: 100vh;
-      height: 100dvh; 
-      margin: 0;
-      overflow: hidden;
+      display: flex; justify-content: center; align-items: center; 
+      height: 100vh; height: 100dvh; margin: 0; overflow: hidden;
     }
     
-    /* モーダル関連 */
     .modal-overlay { 
       position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
       background: rgba(0, 0, 0, 0.4); display: flex; justify-content: center; align-items: center; z-index: 999; 
@@ -75,32 +64,16 @@
     .cancel-btn { background: #e0e0e0 !important; color: #333 !important; }
     .danger-btn { background: #ff4d4f !important; color: #fff !important; }
 
-    /* =========================================
-       📱 アプリ全体のレイアウト (ベース設定)
-       ========================================= */
     .app-card { 
       width: 100%; height: 100%; background: #fff; display: none; 
-      flex-direction: row; 
-      overflow: hidden; position: relative;
+      flex-direction: row; overflow: hidden; position: relative;
     }
-    
-    /* 左側ペイン (ルーム一覧) */
-    .sidebar { 
-      display: flex; flex-direction: column; width: 100%; height: 100%; 
-      flex-shrink: 0; background: #f4f6f8; 
-    }
-    
-    /* 右側ペイン (チャット画面) */
-    .main-content { 
-      display: none; flex-direction: column; width: 100%; height: 100%; 
-      flex: 1; background: #fff; 
-    }
+    .sidebar { display: flex; flex-direction: column; width: 100%; height: 100%; flex-shrink: 0; background: #f4f6f8; }
+    .main-content { display: none; flex-direction: column; width: 100%; height: 100%; flex: 1; background: #fff; }
 
-    /* ヘッダー共通 */
     .app-header { 
       background: #3ecf8e; color: #fff; padding: 12px 16px; 
-      display: flex; align-items: center; justify-content: center; 
-      position: relative; flex-shrink: 0; height: 56px;
+      display: flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; height: 56px;
     }
     .app-header-title { font-weight: bold; font-size: 18px; letter-spacing: 0.5px; }
     
@@ -114,7 +87,6 @@
     .icon-btn.right { right: 12px; }
     .icon-btn.left { left: 12px; }
 
-    /* ルームリストエリア */
     .room-list-container { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
     .room-list { flex: 1; overflow-y: auto; padding: 10px; }
     .room-item { background: #fff; padding: 16px; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: transform 0.1s; }
@@ -133,7 +105,6 @@
     .btn-create { background: #3ecf8e; color: #fff; }
     .btn-join { background: #e0e0e0; color: #333; }
 
-    /* チャットエリア */
     .chat-empty {
       flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;
       background: #f4f6f8; color: #888; font-size: 14px;
@@ -143,13 +114,9 @@
     .chat-input-area input { flex: 1; margin-bottom: 0; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
     .chat-input-area button { background: #3ecf8e; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-    /* メッセージの吹き出し */
     .msg-wrapper { display: flex; align-items: flex-end; gap: 6px; max-width: 85%; align-self: flex-start; }
     .msg-wrapper.my-msg-wrapper { align-self: flex-end; flex-direction: row-reverse; }
-    
-    /* ★修正: white-space: pre-wrap; を追加して改行が反映されるようにした */
     .msg { background: #f0f2f5; padding: 12px 16px; border-radius: 12px; word-break: break-word; font-size: 16px; line-height: 1.4; white-space: pre-wrap; }
-    
     .msg .author { font-size: 13px; font-weight: bold; color: #3ecf8e; margin-bottom: 4px; }
     .msg-wrapper.my-msg-wrapper .msg { background: #dcf8c6; }
     .msg-wrapper.my-msg-wrapper .msg .author { display: none; }
@@ -159,17 +126,10 @@
     .delete-btn { font-size: 12px; color: #999; background: none; border: none; cursor: pointer; padding: 0; margin-top: 4px; }
     .delete-btn:hover { text-decoration: underline; color: #666; }
 
-    /* =========================================
-       📱 レスポンシブ: スマホ画面 (767px以下)
-       ========================================= */
     @media screen and (max-width: 767px) {
       .app-card[data-state="chat"] .sidebar { display: none; }
       .app-card[data-state="chat"] .main-content { display: flex; }
     }
-
-    /* =========================================
-       💻 レスポンシブ: PC・タブレット画面 (768px以上)
-       ========================================= */
     @media screen and (min-width: 768px) {
       .sidebar { width: 320px; max-width: 30vw; border-right: 1px solid #ddd; }
       .main-content { display: flex !important; }
@@ -180,11 +140,11 @@
 </head>
 <body>
 
-  <!-- カスタムアラート・確認用モーダル (一番手前に表示) -->
+  <!-- カスタムアラート・確認用モーダル -->
   <div class="modal-overlay" id="customAlertModal" style="display: none; z-index: 1100;">
     <div class="card">
       <h3 id="customAlertTitle">お知らせ</h3>
-      <p id="customAlertMessage" style="margin-bottom: 20px; white-space: pre-wrap; font-size: 14px; color: #333;"></p>
+      <p id="customAlertMessage" style="margin-bottom: 20px; white-space: pre-wrap; font-size: 14px; color: #333; text-align: left;"></p>
       <button class="primary-btn" onclick="closeCustomAlert()">OK</button>
     </div>
   </div>
@@ -200,7 +160,7 @@
     </div>
   </div>
 
-  <!-- モーダル群 -->
+  <!-- 各種モーダル -->
   <div class="modal-overlay" id="appPasswordModal">
     <div class="card">
       <h3>🔒 Roomie</h3>
@@ -263,7 +223,6 @@
   <!-- アプリメイン画面 -->
   <div class="app-card" id="appCard" data-state="list">
     
-    <!-- 左ペイン：サイドバー (ルーム一覧) -->
     <div class="sidebar" id="sidebar">
       <div class="app-header">
         <div class="app-header-title">Roomie</div>
@@ -280,7 +239,6 @@
       </div>
     </div>
 
-    <!-- 右ペイン：メインコンテンツ (チャット画面) -->
     <div class="main-content" id="mainContent">
       <div class="app-header">
         <button class="icon-btn left" id="backBtn" onclick="showRoomList()" title="戻る">
@@ -316,7 +274,7 @@
     let currentRoomNumber = null;
     let realtimeChannel = null;
     let myRooms = [];
-
+    
     // --- カスタムアラート・確認用関数 ---
     let alertResolve = null;
     let confirmResolve = null;
@@ -369,7 +327,6 @@
         myRooms = currentUser.user_metadata.my_rooms || [];
         document.getElementById('appCard').style.display = 'flex';
         
-        // OneSignalにログインユーザーを紐づけ
         OneSignalDeferred.push(function(OneSignal) {
           OneSignal.login(currentUser.id);
         });
@@ -406,7 +363,6 @@
         document.getElementById('authModal').style.display = 'none';
         document.getElementById('appCard').style.display = 'flex';
         
-        // OneSignalにログインユーザーを紐づけ
         OneSignalDeferred.push(function(OneSignal) {
           OneSignal.login(currentUser.id);
         });
@@ -420,12 +376,7 @@
     async function executeLogout() {
       await supabaseClient.auth.signOut();
       currentUser = null;
-      
-      // ログアウト時にOneSignalからもログアウト
-      OneSignalDeferred.push(function(OneSignal) {
-        OneSignal.logout();
-      });
-
+      OneSignalDeferred.push(function(OneSignal) { OneSignal.logout(); });
       closeLogoutConfirm();
       location.reload(); 
     }
@@ -454,16 +405,9 @@
       const num = document.getElementById('newRoomNumber').value;
       const pass = document.getElementById('newRoomPassword').value;
       
-      if(!pass) {
-        await customAlert("パスワードを入力してください", "入力エラー");
-        return;
-      }
+      if(!pass) { await customAlert("パスワードを入力してください", "入力エラー"); return; }
 
-      const { data, error } = await supabaseClient.from('rooms').insert([{ 
-        room_number: num, 
-        password: pass,
-        room_name: name
-      }]);
+      const { error } = await supabaseClient.from('rooms').insert([{ room_number: num, password: pass, room_name: name }]);
       
       if (error) {
         await customAlert("エラー: " + error.message, "作成失敗");
@@ -478,10 +422,7 @@
       const num = document.getElementById('joinRoomNumber').value;
       const pass = document.getElementById('joinRoomPassword').value;
       
-      if(!num || !pass) {
-        await customAlert("入力が足りません", "入力エラー");
-        return;
-      }
+      if(!num || !pass) { await customAlert("入力が足りません", "入力エラー"); return; }
 
       const { data, error } = await supabaseClient.from('rooms').select('*').eq('room_number', num).eq('password', pass);
       
@@ -500,29 +441,19 @@
       if (!myRooms.includes(String(num))) {
         myRooms.push(String(num));
         await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
-        
-        // OneSignalに「このルームの通知を受け取る」タグを追加
-        OneSignalDeferred.push(function(OneSignal) {
-          OneSignal.User.addTag("room_" + num, "true");
-        });
+        OneSignalDeferred.push(function(OneSignal) { OneSignal.User.addTag("room_" + num, "true"); });
       }
       showRoomList();
     }
 
     async function removeRoomFromList(event, num, name) {
       event.stopPropagation(); 
-      
-      const isOk = await customConfirm(`ルーム「${name}」を一覧から削除しますか？\n※退室するだけで、ルーム自体は消えません。再度パスワードで参加可能です。`, "リストから削除", "削除する");
+      const isOk = await customConfirm(`ルーム「${name}」を一覧から削除しますか？`, "リストから削除", "削除する");
       if (!isOk) return;
 
       myRooms = myRooms.filter(r => r !== String(num));
       await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
-      
-      // OneSignalから「このルームの通知を受け取る」タグを削除
-      OneSignalDeferred.push(function(OneSignal) {
-        OneSignal.User.removeTag("room_" + num);
-      });
-      
+      OneSignalDeferred.push(function(OneSignal) { OneSignal.User.removeTag("room_" + num); });
       showRoomList(); 
     }
 
@@ -530,7 +461,6 @@
       currentRoomNumber = null;
       document.getElementById('appCard').dataset.state = 'list';
       document.getElementById('headerTitle').textContent = '未選択';
-      
       document.getElementById('chatActiveArea').style.display = 'none';
       document.getElementById('chatEmptyArea').style.display = 'flex';
       
@@ -540,10 +470,7 @@
         listEl.innerHTML = '<p style="text-align: center; color: #999; margin-top: 20px;">参加中のルームはありません</p>';
       } else {
         listEl.innerHTML = '<p style="text-align: center; color: #999; margin-top: 20px;">読み込み中...</p>';
-        
-        const { data, error } = await supabaseClient.from('rooms')
-          .select('room_number, room_name')
-          .in('room_number', myRooms);
+        const { data, error } = await supabaseClient.from('rooms').select('room_number, room_name').in('room_number', myRooms);
 
         listEl.innerHTML = '';
         if (data && data.length > 0) {
@@ -556,7 +483,7 @@
                   <div class="room-number">No. ${room.room_number}</div>
                 </div>
                 <div class="room-item-right">
-                  <button class="delete-room-btn" onclick="removeRoomFromList(event, '${room.room_number}', '${safeName}')" title="リストから削除">
+                  <button class="delete-room-btn" onclick="removeRoomFromList(event, '${room.room_number}', '${safeName}')">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                   </button>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -569,21 +496,15 @@
         }
       }
 
-      if (realtimeChannel) {
-        supabaseClient.removeChannel(realtimeChannel);
-        realtimeChannel = null;
-      }
+      if (realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; }
     }
 
     // --- チャット関連 ---
     async function openChat(num, name) {
       currentRoomNumber = num;
       document.getElementById('headerTitle').textContent = name;
-      
       document.getElementById('chatEmptyArea').style.display = 'none';
       document.getElementById('chatActiveArea').style.display = 'flex';
-      
-      // スマホ表示用（右ペインに切り替え）
       document.getElementById('appCard').dataset.state = 'chat';
 
       const box = document.getElementById('chatBox');
@@ -592,11 +513,11 @@
       const { data } = await supabaseClient.from('messages')
         .select('*').eq('room_number', num).order('created_at', { ascending: true });
         
-      if(data) data.forEach(appendMessage);
-
-      if (realtimeChannel) {
-        supabaseClient.removeChannel(realtimeChannel);
+      if(data && data.length > 0) {
+        data.forEach(appendMessage);
       }
+
+      if (realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); }
       realtimeChannel = supabaseClient.channel('custom-all-channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `room_number=eq.${num}` }, payload => {
           if (payload.eventType === 'INSERT') appendMessage(payload.new);
@@ -615,14 +536,27 @@
 
       input.value = '';
 
-      const { error } = await supabaseClient.from('messages').insert([{
+      // ★ カラム名を「message」に完全固定しました
+      const payload = {
         room_number: currentRoomNumber,
         user_name: currentUser.user_metadata.display_name,
-        content: text,
-        user_id: currentUser.id
-      }]);
+        user_id: currentUser.id,
+        message: text
+      };
 
-      if (error) await customAlert('エラー: ' + error.message, "送信エラー");
+      const { error } = await supabaseClient.from('messages').insert([payload]);
+
+      if (error) {
+        input.value = text;
+        if (error.message.includes('schema cache')) {
+          await customAlert(
+            "【Supabaseのサーバー反映待ちです】\n\n項目の名前を変更したばかりのため、Supabase側で古い情報が残っています。\n\n数分待つか、Supabaseの画面をリロードしてから再度お試しください。",
+            "送信エラー"
+          );
+        } else {
+          await customAlert(`エラー内容: ${error.message}\n\n※Supabaseに「message」という名前のカラム(text型)があるか確認してください。`, "送信エラー");
+        }
+      }
     }
 
     async function deleteMessage(id) {
@@ -634,10 +568,10 @@
     }
 
     function appendMessage(msg) {
-      // ★修正: contentかmessageのどちらかにテキストが入っているか確認
-      const messageText = msg.content || msg.message || '';
-      
-      // ★修正: テキストが完全に空っぽの場合は、画面に描画しない（古いバグデータの非表示）
+      if (!msg) return;
+
+      // ★ 取得も「message」カラムから固定で行います
+      const messageText = msg.message;
       if (!messageText) return;
 
       const box = document.getElementById('chatBox');
@@ -671,7 +605,6 @@
       });
     }
 
-    // --- 起動 ---
     window.onload = checkAppPassword;
   </script>
 </body>
