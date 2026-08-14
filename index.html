@@ -109,21 +109,45 @@
       flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;
       background: #f4f6f8; color: #888; font-size: 14px;
     }
-    .chat-messages { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #fff; }
+    .chat-messages { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #fff; }
     .chat-input-area { padding: 12px; border-top: 1px solid #eee; display: flex; gap: 8px; background: #fff; flex-shrink: 0; }
     .chat-input-area input { flex: 1; margin-bottom: 0; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
     .chat-input-area button { background: #3ecf8e; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-    .msg-wrapper { display: flex; align-items: flex-end; gap: 6px; max-width: 85%; align-self: flex-start; }
+    /* ★ 修正ポイント: 吹き出しのデザイン設定 */
+    .msg-wrapper { display: flex; align-items: flex-end; gap: 6px; max-width: 80%; align-self: flex-start; }
     .msg-wrapper.my-msg-wrapper { align-self: flex-end; flex-direction: row-reverse; }
-    .msg { background: #f0f2f5; padding: 12px 16px; border-radius: 12px; word-break: break-word; font-size: 16px; line-height: 1.4; white-space: pre-wrap; }
-    .msg .author { font-size: 13px; font-weight: bold; color: #3ecf8e; margin-bottom: 4px; }
+    
+    /* 吹き出しの外枠 */
+    .msg { 
+      background: #f0f2f5; 
+      padding: 8px 14px; 
+      border-radius: 16px; 
+      font-size: 15px; 
+      line-height: 1.4; 
+      width: fit-content; 
+      text-align: left;
+    }
+    
+    /* 吹き出しのテキスト本体（ここで改行を処理させる） */
+    .msg-text {
+      white-space: pre-wrap; 
+      word-break: break-word;
+    }
+
+    .msg .author { 
+      font-size: 11px; 
+      font-weight: bold; 
+      color: #3ecf8e; 
+      margin-bottom: 2px; 
+    }
     .msg-wrapper.my-msg-wrapper .msg { background: #dcf8c6; }
     .msg-wrapper.my-msg-wrapper .msg .author { display: none; }
-    .time-area { display: flex; flex-direction: column; align-items: flex-start; }
+    
+    .time-area { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 2px; }
     .my-msg-wrapper .time-area { align-items: flex-end; }
-    .time { font-size: 12px; color: #999; white-space: nowrap; }
-    .delete-btn { font-size: 12px; color: #999; background: none; border: none; cursor: pointer; padding: 0; margin-top: 4px; }
+    .time { font-size: 11px; color: #999; white-space: nowrap; }
+    .delete-btn { font-size: 11px; color: #999; background: none; border: none; cursor: pointer; padding: 0; margin-top: 2px; }
     .delete-btn:hover { text-decoration: underline; color: #ff4d4f; }
 
     @media screen and (max-width: 767px) {
@@ -164,8 +188,8 @@
   <div class="modal-overlay" id="appPasswordModal">
     <div class="card">
       <h3>🔒 Roomie</h3>
-      <p>アクセス合言葉を入力してください</p>
-      <input type="password" id="appPassInput" placeholder="合言葉 (jpcc)" onkeypress="if(event.key==='Enter') checkAppPassword()">
+      <p>パスワードを入力してください</p>
+      <input type="password" id="appPassInput" placeholder="パスワードを入力" onkeypress="if(event.key==='Enter') checkAppPassword()">
       <div class="error-msg" id="appErrorMsg"></div>
       <button class="primary-btn" onclick="checkAppPassword()">入室する</button>
     </div>
@@ -558,7 +582,6 @@
       }
     }
 
-    // ★ 修正点: 削除処理時に成功したら自分の画面からも直接消す
     async function deleteMessage(id) {
       const isOk = await customConfirm("このメッセージを削除しますか？", "削除の確認", "削除する");
       if (!isOk) return;
@@ -568,12 +591,12 @@
       if (error) {
         await customAlert("エラー: " + error.message, "削除エラー");
       } else {
-        // データベースから消えたら自分の画面からも削除
         const el = document.getElementById(`msg-${id}`);
         if (el) el.remove();
       }
     }
 
+    /* ★ 修正ポイント: 改行が余白にならないよう、テキストのdivにのみ .msg-text を付与しました */
     function appendMessage(msg) {
       if (!msg) return;
 
@@ -592,7 +615,7 @@
       div.innerHTML = `
         <div class="msg">
           <div class="author">${escapeHtml(msg.user_name)}</div>
-          <div>${escapeHtml(messageText)}</div>
+          <div class="msg-text">${escapeHtml(messageText)}</div>
         </div>
         <div class="time-area">
           <div class="time">${time}</div>
