@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Roomie 快適なチャットを</title>
+  <title>Roomie 快適なチャットをあなたに</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <link rel="manifest" href="manifest.json">
@@ -350,6 +350,9 @@
     let currentDMTarget = null;
     let realtimeChannel = null;
     let selectedImageFiles = [];
+
+    // --- スパム防止用の変数 ---
+    let lastMessageTime = 0;
 
     let alertResolve = null, confirmResolve = null;
     function customAlert(message, title = 'お知らせ') { return new Promise((resolve) => { document.getElementById('customAlertTitle').textContent = title; document.getElementById('customAlertMessage').textContent = message; document.getElementById('customAlertModal').style.display = 'flex'; alertResolve = resolve; }); }
@@ -782,6 +785,15 @@
       if (!text && selectedImageFiles.length === 0) return;
       if (!currentRoomNumber && !currentDMTarget) return;
       
+      // --- スパム防止のレートリミット（1秒に1回まで） ---
+      const now = Date.now();
+      if (now - lastMessageTime < 2000) {
+        await customAlert("スパム防止のため、メッセージは2秒に1回までしか送信できません。");
+        return;
+      }
+      lastMessageTime = now;
+      // ------------------------------------------------
+
       document.getElementById('chatLoading').style.display = 'flex';
       const imageUrls = [];
       
