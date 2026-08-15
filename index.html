@@ -97,7 +97,7 @@
     .room-info { flex: 1; cursor: pointer; }
     .room-name { font-weight: bold; font-size: 16px; color: #333; }
     .room-number { font-size: 12px; color: #888; margin-top: 4px; }
-    .hide-btn { background: #f0f0f0; border: none; color: #888; font-size: 11px; font-weight: bold; padding: 6px 12px; border-radius: 6px; cursor: pointer; margin-left: 10px; flex-shrink: 0; transition: background 0.2s; }
+    .hide-btn { background: #f0f0f0; border: none; color: #888; font-size: 11px; font-weight: bold; padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
     .hide-btn:hover { background: #e0e0e0; color: #333; }
     
     .bottom-actions { padding: 12px; background: #fff; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
@@ -235,7 +235,7 @@
       <input type="password" id="joinRoomPassword" placeholder="パスワード">
       <div class="button-group">
         <button class="primary-btn cancel-btn" onclick="closeModals()">キャンセル</button>
-        <button class="primary-btn" onclick="joinRoom()">参加</button>
+        <button class="primary-btn" onclick="joinRoom()">参加申請</button>
       </div>
     </div>
   </div>
@@ -249,6 +249,17 @@
         <button class="primary-btn cancel-btn" onclick="closeModals()">キャンセル</button>
         <button class="primary-btn" style="background: #0084ff;" onclick="startNewDM()">メッセージ</button>
       </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="roomAdminModal" style="display: none; z-index: 1200;">
+    <div class="card" style="max-width: 400px;">
+      <h3>参加申請の管理</h3>
+      <p style="margin-bottom: 10px;">ルームNo. <span id="adminRoomNumText" style="font-weight:bold;"></span></p>
+      <div id="requestListArea" style="max-height: 300px; overflow-y: auto; text-align: left; background: #f9f9f9; border-radius: 8px; padding: 10px; margin-bottom: 15px;">
+        <!-- リクエストリストが入ります -->
+      </div>
+      <button class="primary-btn cancel-btn" onclick="closeRoomAdminModal()">閉じる</button>
     </div>
   </div>
 
@@ -417,9 +428,163 @@
 
     function openCreateRoomModal() { document.getElementById('newRoomName').value = ''; document.getElementById('newRoomNumber').value = Math.floor(100000 + Math.random() * 900000); document.getElementById('newRoomPassword').value = ''; document.getElementById('createRoomModal').style.display = 'flex'; }
     function openJoinRoomModal() { document.getElementById('joinRoomNumber').value = ''; document.getElementById('joinRoomPassword').value = ''; document.getElementById('joinRoomModal').style.display = 'flex'; }
-    async function createRoom() { const name = document.getElementById('newRoomName').value.trim() || '無名のルーム'; const num = document.getElementById('newRoomNumber').value; const pass = document.getElementById('newRoomPassword').value; if(!pass) return; const { error } = await supabaseClient.from('rooms').insert([{ room_number: num, password: pass, room_name: name }]); if (!error) { await addRoomToList(num); closeModals(); } }
-    async function joinRoom() { const num = document.getElementById('joinRoomNumber').value; const pass = document.getElementById('joinRoomPassword').value; const { data } = await supabaseClient.from('rooms').select('*').eq('room_number', num).eq('password', pass); if (data && data.length > 0) { await addRoomToList(num); closeModals(); } else { await customAlert("ルームナンバーかパスワードが違います"); } }
     
+    // ルーム作成（作成者を管理者として記録）
+    async function createRoom() { 
+      const name = document.getElementById('newRoomName').value.trim() || '無名のルーム'; 
+      const num = document.getElementById('newRoomNumber').value; 
+      const pass = document.getElementById('newRoomPassword').value; 
+      if(!pass) return; 
+      
+      const { error } = await supabaseClient.from('rooms').insert([{ 
+        room_number: num, 
+        password: pass, 
+        room_name: name,
+        admin_id: currentUser.id
+      }]); 
+      
+      if (!error) { 
+        await addRoomToList(num); 
+        closeModals(); 
+      } else {
+        await customAlert("エラーが発生しました: " + error.message);
+      }
+    }
+    
+    // ルーム参加（自分が作ったルーム以外は絶対に申請プロセスを通す）
+    async function joinRoom() { 
+      const num = document.getElementById('joinRoomNumber').value; 
+      const pass = document.getElementById('joinRoomPassword').value; 
+      
+      const { data } = await supabaseClient.from('rooms').select('*').eq('room_number', num).eq('password', pass); 
+      
+      if (data && data.length > 0) { 
+        const room = data[0];
+        
+        // 自分が作成したルーム（管理者）なら即時参加可能
+        if (room.admin_id === currentUser.id) {
+          await addRoomToList(num); 
+          closeModals(); 
+          return;
+        }
+
+        // --- 以下、自分以外（管理者でないユーザー）の参加処理 ---
+        // 申請状態をチェック
+        const { data: reqData } = await supabaseClient.from('room_requests')
+          .select('*').eq('room_number', num).eq('user_id', currentUser.id);
+          
+        if (reqData && reqData.length > 0) {
+          const status = reqData[0].status;
+          if (status === 'pending') {
+            await customAlert("既に申請済みです。管理者の許可をお待ちください。");
+            closeModals();
+          } else if (status === 'approved') {
+            await addRoomToList(num);
+            closeModals();
+          } else if (status === 'rejected') {
+            await customAlert("このルームへの参加は拒否されました。");
+            closeModals();
+          }
+        } else {
+          // まだ申請していない場合は、新規で「保留(pending)」として登録
+          const { error } = await supabaseClient.from('room_requests').insert([{
+            room_number: num,
+            user_id: currentUser.id,
+            user_name: currentUser.user_metadata.display_name,
+            status: 'pending'
+          }]);
+          
+          if (!error) {
+            await customAlert("参加申請を送りました。\n管理者が許可するまでルームには入れません。");
+            closeModals();
+          } else {
+            await customAlert("エラーが発生しました: " + error.message);
+          }
+        }
+      } else { 
+        await customAlert("ルームナンバーかパスワードが違います"); 
+      } 
+    }
+    
+    // 承認された申請がないかチェックし、あれば自動的に myRooms に追加する
+    async function checkApprovedRequests() {
+      const { data } = await supabaseClient.from('room_requests')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .eq('status', 'approved');
+        
+      if (data && data.length > 0) {
+        let updated = false;
+        for (let req of data) {
+          if (!myRooms.includes(String(req.room_number))) {
+            myRooms.push(String(req.room_number));
+            updated = true;
+          }
+          // 追加完了したらリクエストレコードを削除する
+          await supabaseClient.from('room_requests').delete().eq('id', req.id);
+        }
+        if (updated) {
+          await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
+          customAlert("管理者に参加申請が承認され、新しいルームに入室しました！");
+        }
+      }
+    }
+
+    // --- 管理者用の申請管理機能 ---
+    let adminTargetRoom = null;
+    
+    async function openRoomAdmin(num, event) {
+      event.stopPropagation();
+      adminTargetRoom = num;
+      document.getElementById('adminRoomNumText').textContent = num;
+      document.getElementById('roomAdminModal').style.display = 'flex';
+      await loadRequests();
+    }
+    
+    function closeRoomAdminModal() {
+      document.getElementById('roomAdminModal').style.display = 'none';
+      adminTargetRoom = null;
+    }
+    
+    async function loadRequests() {
+      const listArea = document.getElementById('requestListArea');
+      listArea.innerHTML = '<p style="text-align:center; color:#888;">読み込み中...</p>';
+      
+      const { data, error } = await supabaseClient.from('room_requests')
+        .select('*')
+        .eq('room_number', adminTargetRoom)
+        .eq('status', 'pending');
+        
+      if (error) {
+        listArea.innerHTML = '<p style="color:red; text-align:center;">エラーが発生しました</p>';
+        return;
+      }
+      
+      if (!data || data.length === 0) {
+        listArea.innerHTML = '<p style="text-align:center; color:#888; font-size:14px; padding:10px;">現在、承認待ちの申請はありません。</p>';
+        return;
+      }
+      
+      listArea.innerHTML = '';
+      data.forEach(req => {
+        listArea.innerHTML += `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #ddd; background: #fff; border-radius: 6px; margin-bottom: 6px;">
+            <div style="font-weight: bold; font-size: 14px;">${escapeHtml(req.user_name)}</div>
+            <div style="display: flex; gap: 6px;">
+              <button style="padding: 6px 12px; background: #3ecf8e; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;" onclick="handleRequest('${req.id}', 'approved')">許可</button>
+              <button style="padding: 6px 12px; background: #ff4d4f; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;" onclick="handleRequest('${req.id}', 'rejected')">拒否</button>
+            </div>
+          </div>
+        `;
+      });
+    }
+    
+    async function handleRequest(reqId, status) {
+      await supabaseClient.from('room_requests').update({ status }).eq('id', reqId);
+      await loadRequests();
+    }
+    // ---------------------------------
+
     async function addRoomToList(num) { 
       if (!myRooms.includes(String(num))) { 
         myRooms.push(String(num)); 
@@ -449,10 +614,14 @@
 
     async function showRoomList() {
       resetChatArea();
+      
+      // ルームリストを開くたびに、自分が承認された申請がないかチェック
+      await checkApprovedRequests();
+
       const listEl = document.getElementById('sidebarList');
       if (myRooms.length === 0) { listEl.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">参加中のルームはありません</p>'; return; }
       
-      const { data: rooms } = await supabaseClient.from('rooms').select('room_number, room_name').in('room_number', myRooms);
+      const { data: rooms } = await supabaseClient.from('rooms').select('room_number, room_name, admin_id').in('room_number', myRooms);
       const { data: messages } = await supabaseClient.from('messages').select('room_number, created_at').in('room_number', myRooms).order('created_at', { ascending: false });
       
       const roomLastMsg = {};
@@ -474,7 +643,6 @@
           return new Date(lastMsgAt) > new Date(hiddenAt);
         });
 
-        // ★ 追加：最新メッセージが新しい順（降順）に並び替え
         visibleRooms.sort((a, b) => {
           const timeA = new Date(roomLastMsg[a.room_number] || "1970-01-01T00:00:00.000Z").getTime();
           const timeB = new Date(roomLastMsg[b.room_number] || "1970-01-01T00:00:00.000Z").getTime();
@@ -488,13 +656,18 @@
       } else {
         visibleRooms.forEach(room => {
           const safeName = escapeHtml(room.room_name);
+          const isAdmin = (room.admin_id === currentUser.id); // 自分が管理者のルームか判定
+          
           listEl.innerHTML += `
             <div class="room-item">
               <div class="room-info" onclick="openChatRoom('${room.room_number}', '${safeName}')">
                 <div class="room-name">${safeName}</div>
                 <div class="room-number">No. ${room.room_number}</div>
               </div>
-              <button class="hide-btn" onclick="hideRoom('${room.room_number}', event)">非表示</button>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                ${isAdmin ? `<button class="hide-btn" style="background: #e6f7ff; color: #0084ff;" onclick="openRoomAdmin('${room.room_number}', event)">管理</button>` : ''}
+                <button class="hide-btn" onclick="hideRoom('${room.room_number}', event)">非表示</button>
+              </div>
             </div>
           `;
         });
@@ -572,7 +745,6 @@
         return new Date(dmPartners[partner]) > new Date(hiddenAt);
       });
 
-      // ★ 追加：DMも明示的に最新メッセージが新しい順（降順）に並び替え
       visiblePartners.sort((a, b) => {
         const timeA = new Date(dmPartners[a] || "1970-01-01T00:00:00.000Z").getTime();
         const timeB = new Date(dmPartners[b] || "1970-01-01T00:00:00.000Z").getTime();
