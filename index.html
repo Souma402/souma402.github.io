@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Roomie 快適なチャットを</title>
+  <title>Roomie 快適なチャット</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <link rel="manifest" href="manifest.json">
@@ -50,7 +50,7 @@
 
     .modal-overlay { 
       position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-      background: rgba(0, 0, 0, 0.4); display: flex; justify-content: center; align-items: center; z-index: 999; 
+      background: rgba(0, 0, 0, 0.4); display: flex; justify-content: center; align-items: center; z-index: 1100; 
     }
     .card { 
       background: #fff; padding: 24px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); 
@@ -100,8 +100,6 @@
     .room-item { background: #fff; padding: 16px; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
     .room-name { font-weight: bold; font-size: 16px; color: #333; }
     .room-number { font-size: 12px; color: #888; margin-top: 4px; }
-    .room-item-right { display: flex; align-items: center; gap: 12px; }
-    .delete-room-btn { background: none; border: none; color: #ff4d4f; cursor: pointer; padding: 6px; }
     
     .bottom-actions { padding: 12px; background: #fff; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
     .bottom-actions .row-btns { display: flex; gap: 10px; }
@@ -111,14 +109,36 @@
 
     .chat-empty { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #f4f6f8; color: #888; font-size: 14px; }
     .chat-messages { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #fff; }
-    .chat-input-area { padding: 12px; border-top: 1px solid #eee; display: flex; gap: 8px; background: #fff; flex-shrink: 0; }
-    .chat-input-area input { flex: 1; margin-bottom: 0; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
+    
+    /* 画像プレビューエリア */
+    .image-preview-area {
+      display: none; padding: 8px 12px; background: #f9f9f9; border-top: 1px solid #eee; gap: 10px; overflow-x: auto; flex-shrink: 0;
+    }
+    .preview-item { position: relative; width: 60px; height: 60px; flex-shrink: 0; border-radius: 8px; overflow: hidden; border: 1px solid #ddd; }
+    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-remove-btn { 
+      position: absolute; top: 2px; right: 2px; background: rgba(0,0,0,0.6); color: white; border: none; 
+      border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; 
+    }
+    
+    .chat-input-area { padding: 12px; border-top: 1px solid #eee; display: flex; gap: 8px; background: #fff; flex-shrink: 0; align-items: center; }
+    .chat-input-area input[type="text"] { flex: 1; margin-bottom: 0; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
     .chat-input-area button { background: #3ecf8e; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    
+    .image-upload-btn { 
+      font-size: 20px; cursor: pointer; padding: 8px; color: #666; transition: color 0.2s; 
+    }
+    .image-upload-btn:hover { color: #3ecf8e; }
 
-    .msg-wrapper { display: flex; align-items: flex-end; gap: 6px; max-width: 80%; align-self: flex-start; }
+    .msg-wrapper { display: flex; align-items: flex-end; gap: 6px; max-width: 85%; align-self: flex-start; }
     .msg-wrapper.my-msg-wrapper { align-self: flex-end; flex-direction: row-reverse; }
     .msg { background: #f0f2f5; padding: 8px 14px; border-radius: 16px; font-size: 15px; line-height: 1.4; width: fit-content; text-align: left; }
     .msg-text { white-space: pre-wrap; word-break: break-word; }
+    
+    /* チャット内の画像 */
+    .msg-images { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+    .msg-images img { max-width: 100%; max-height: 200px; border-radius: 8px; cursor: pointer; object-fit: contain; }
+    
     .msg .author { font-size: 11px; font-weight: bold; color: #3ecf8e; margin-bottom: 2px; }
     .msg-wrapper.my-msg-wrapper .msg { background: #dcf8c6; }
     .msg-wrapper.my-msg-wrapper .msg .author { display: none; }
@@ -133,7 +153,6 @@
     .report-btn { color: #ff9800; font-weight: bold; }
     .report-btn:hover { color: #e65100; text-decoration: underline; }
 
-    /* 管理者パネル用スタイル */
     .report-card { background: #f9f9f9; border-left: 4px solid #ff4d4f; padding: 12px; margin-bottom: 12px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     .report-card .info { font-size: 12px; color: #666; margin-bottom: 6px; }
     .report-card .msg-box { background: #fff; padding: 8px; border-radius: 6px; font-size: 14px; margin-bottom: 10px; border: 1px solid #ddd; }
@@ -143,7 +162,6 @@
     .btn-ban { background: #000; color: white; }
     .btn-ignore { background: #ddd; color: #333; }
 
-    /* 画面切り替え制御 */
     @media screen and (max-width: 767px) {
       .app-card[data-state="chat"] .sidebar, .app-card[data-state="admin"] .sidebar { display: none; }
       .app-card[data-state="chat"] .main-content { display: flex; }
@@ -154,21 +172,25 @@
       .main-content { display: flex !important; }
       #backBtn { display: none !important; }
       .sidebar .app-header { border-right: 1px solid rgba(255, 255, 255, 0.2); }
-      
       .app-card[data-state="admin"] .main-content { display: none !important; }
       .app-card[data-state="admin"] .admin-content { display: flex !important; }
+    }
+    
+    /* 読み込み中オーバーレイ */
+    .loading-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+      background: rgba(255,255,255,0.7); display: none; justify-content: center; align-items: center;
+      z-index: 100; font-weight: bold; color: #3ecf8e;
     }
   </style>
 </head>
 <body>
 
-  <!-- スプラッシュスクリーン -->
   <div id="splashScreen" class="splash-screen">
     <div class="splash-logo">Roomie</div>
   </div>
 
-  <!-- アラート・確認用モーダル -->
-  <div class="modal-overlay" id="customAlertModal" style="display: none; z-index: 1100;">
+  <div class="modal-overlay" id="customAlertModal" style="display: none; z-index: 2000;">
     <div class="card">
       <h3 id="customAlertTitle">お知らせ</h3>
       <p id="customAlertMessage" style="margin-bottom: 20px; white-space: pre-wrap; font-size: 14px; text-align: left;"></p>
@@ -176,7 +198,7 @@
     </div>
   </div>
 
-  <div class="modal-overlay" id="customConfirmModal" style="display: none; z-index: 1100;">
+  <div class="modal-overlay" id="customConfirmModal" style="display: none; z-index: 2000;">
     <div class="card">
       <h3 id="customConfirmTitle">確認</h3>
       <p id="customConfirmMessage" style="margin-bottom: 20px; white-space: pre-wrap; font-size: 14px;"></p>
@@ -187,12 +209,11 @@
     </div>
   </div>
 
-  <!-- 各種モーダル -->
   <div class="modal-overlay" id="appPasswordModal" style="display: none;">
     <div class="card">
       <h3>🔒 Roomie</h3>
       <p>パスワードを入力してください</p>
-      <input type="password" id="appPassInput" placeholder="パスワード" onkeypress="if(event.key==='Enter') checkAppPassword()">
+      <input type="password" id="appPassInput" placeholder="パスワードを入力" onkeypress="if(event.key==='Enter') checkAppPassword()">
       <div class="error-msg" id="appErrorMsg"></div>
       <button class="primary-btn" onclick="checkAppPassword()">入室する</button>
     </div>
@@ -235,7 +256,6 @@
     </div>
   </div>
 
-  <!-- アプリメイン画面 -->
   <div class="app-card" id="appCard" data-state="list">
     
     <div class="sidebar" id="sidebar">
@@ -259,8 +279,10 @@
       </div>
     </div>
 
-    <!-- チャット画面 -->
-    <div class="main-content" id="mainContent">
+    <div class="main-content" id="mainContent" style="position:relative;">
+      <!-- 送信中のローディング -->
+      <div id="chatLoading" class="loading-overlay">送信中...</div>
+
       <div class="app-header">
         <button class="icon-btn left" id="backBtn" onclick="showRoomList()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -272,14 +294,20 @@
       </div>
       <div id="chatActiveArea" style="display: none; flex: 1; flex-direction: column; overflow: hidden;">
         <div class="chat-messages" id="chatBox"></div>
+        
+        <!-- 画像プレビュー -->
+        <div id="imagePreviewArea" class="image-preview-area"></div>
+        
+        <!-- 入力エリア -->
         <div class="chat-input-area">
+          <label for="imageUpload" class="image-upload-btn">📷</label>
+          <input type="file" id="imageUpload" multiple accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
           <input type="text" id="messageInput" placeholder="メッセージを入力..." onkeypress="if(event.key==='Enter') sendMessage()">
           <button onclick="sendMessage()">送信</button>
         </div>
       </div>
     </div>
 
-    <!-- 管理者パネル画面 -->
     <div class="admin-content" id="adminContent">
       <div class="app-header admin-header">
         <button class="icon-btn left" onclick="showRoomList()">戻る</button>
@@ -304,7 +332,9 @@
     let realtimeChannel = null;
     let myRooms = [];
     
-    // --- アラート・確認 ---
+    // 選択された画像を保持する配列
+    let selectedImageFiles = [];
+
     let alertResolve = null;
     let confirmResolve = null;
     function customAlert(message, title = 'お知らせ') {
@@ -333,7 +363,6 @@
       if (confirmResolve) confirmResolve(result);
     }
 
-    // --- 起動と認証 ---
     window.onload = () => {
       setTimeout(() => {
         const splash = document.getElementById('splashScreen');
@@ -357,7 +386,7 @@
     }
 
     async function verifyBanStatus(userId) {
-      const { data, error } = await supabaseClient.from('banned_users').select('id').eq('user_id', userId);
+      const { data } = await supabaseClient.from('banned_users').select('id').eq('user_id', userId);
       if (data && data.length > 0) {
         await customAlert("このアカウントは管理者により利用が停止(BAN)されています。", "利用停止");
         await supabaseClient.auth.signOut();
@@ -410,7 +439,6 @@
       myRooms = currentUser.user_metadata.my_rooms || [];
       document.getElementById('appCard').style.display = 'flex';
       
-      // 管理者ならボタンを表示
       if (currentUser.user_metadata.display_name === '管理者') {
         document.getElementById('adminBtnArea').style.display = 'block';
       }
@@ -427,7 +455,6 @@
       location.reload(); 
     }
 
-    // --- ルーム関連 ---
     function openCreateRoomModal() {
       document.getElementById('newRoomName').value = '';
       document.getElementById('newRoomNumber').value = Math.floor(100000 + Math.random() * 900000);
@@ -456,7 +483,7 @@
     async function joinRoom() {
       const num = document.getElementById('joinRoomNumber').value;
       const pass = document.getElementById('joinRoomPassword').value;
-      const { data, error } = await supabaseClient.from('rooms').select('*').eq('room_number', num).eq('password', pass);
+      const { data } = await supabaseClient.from('rooms').select('*').eq('room_number', num).eq('password', pass);
       if (data && data.length > 0) {
         await addRoomToList(num);
         closeModals();
@@ -503,13 +530,14 @@
       if (realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; }
     }
 
-    // --- チャット関連 ---
     async function openChat(num, name) {
       currentRoomNumber = num;
       document.getElementById('headerTitle').textContent = name;
       document.getElementById('chatEmptyArea').style.display = 'none';
       document.getElementById('chatActiveArea').style.display = 'flex';
       document.getElementById('appCard').dataset.state = 'chat';
+      
+      clearImageSelection();
 
       const box = document.getElementById('chatBox');
       box.innerHTML = '';
@@ -528,15 +556,99 @@
         }).subscribe();
     }
 
+    // --- 画像の選択・プレビュー処理 ---
+    function handleImageSelect(event) {
+      const files = Array.from(event.target.files);
+      if (selectedImageFiles.length + files.length > 5) {
+        customAlert("一度に送信できる画像は最大5枚までです。");
+        return;
+      }
+      selectedImageFiles = selectedImageFiles.concat(files).slice(0, 5);
+      renderImagePreview();
+      // inputをリセット（同じ画像を再度選べるようにするため）
+      document.getElementById('imageUpload').value = '';
+    }
+
+    function renderImagePreview() {
+      const area = document.getElementById('imagePreviewArea');
+      area.innerHTML = '';
+      if (selectedImageFiles.length === 0) {
+        area.style.display = 'none';
+        return;
+      }
+      area.style.display = 'flex';
+      selectedImageFiles.forEach((file, index) => {
+        const url = URL.createObjectURL(file);
+        const div = document.createElement('div');
+        div.className = 'preview-item';
+        div.innerHTML = `
+          <img src="${url}">
+          <button class="preview-remove-btn" onclick="removeImage(${index})">×</button>
+        `;
+        area.appendChild(div);
+      });
+    }
+
+    function removeImage(index) {
+      selectedImageFiles.splice(index, 1);
+      renderImagePreview();
+    }
+
+    function clearImageSelection() {
+      selectedImageFiles = [];
+      renderImagePreview();
+    }
+
+    // --- メッセージ＆画像送信処理 ---
     async function sendMessage() {
       const input = document.getElementById('messageInput');
       const text = input.value.trim();
-      if (!text || !currentRoomNumber) return;
-      input.value = '';
-      await supabaseClient.from('messages').insert([{
-        room_number: currentRoomNumber, user_name: currentUser.user_metadata.display_name,
-        user_id: currentUser.id, message: text
+      
+      if (!text && selectedImageFiles.length === 0) return;
+      if (!currentRoomNumber) return;
+      
+      // 送信中UI
+      document.getElementById('chatLoading').style.display = 'flex';
+      
+      const imageUrls = [];
+      
+      // 画像がある場合は Storage にアップロード
+      if (selectedImageFiles.length > 0) {
+        for (let file of selectedImageFiles) {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
+          
+          const { error: uploadError } = await supabaseClient.storage
+            .from('chat-images')
+            .upload(fileName, file);
+            
+          if (uploadError) {
+            console.error("画像アップロードエラー:", uploadError);
+            continue;
+          }
+          
+          const { data } = supabaseClient.storage.from('chat-images').getPublicUrl(fileName);
+          imageUrls.push(data.publicUrl);
+        }
+      }
+
+      // DBにメッセージ保存
+      const { error } = await supabaseClient.from('messages').insert([{
+        room_number: currentRoomNumber, 
+        user_name: currentUser.user_metadata.display_name,
+        user_id: currentUser.id, 
+        message: text,
+        image_urls: imageUrls // アップロードした画像のURL配列（空の場合は[]になる）
       }]);
+      
+      document.getElementById('chatLoading').style.display = 'none';
+
+      if (error) {
+        await customAlert("メッセージの送信に失敗しました。\nimage_urlsカラムが作成されているか確認してください。");
+      } else {
+        input.value = '';
+        clearImageSelection();
+      }
     }
 
     async function deleteMessage(id) {
@@ -554,14 +666,17 @@
       }]);
 
       if (error) {
-        await customAlert("通報に失敗しました。管理者によってテーブルが作成されていない可能性があります。\n" + error.message);
+        await customAlert("通報に失敗しました。\n" + error.message);
       } else {
         await customAlert("通報が完了しました。管理者が確認して対応します。");
       }
     }
 
     function appendMessage(msg) {
-      if (!msg || !msg.message) return;
+      if (!msg) return;
+      // テキストも画像もない場合はスキップ
+      if (!msg.message && (!msg.image_urls || msg.image_urls.length === 0)) return;
+      
       const box = document.getElementById('chatBox');
       const div = document.createElement('div');
       div.id = `msg-${msg.id}`;
@@ -570,10 +685,21 @@
       div.className = isMine ? 'msg-wrapper my-msg-wrapper' : 'msg-wrapper';
       const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+      // 画像のHTMLを生成
+      let imagesHtml = '';
+      if (msg.image_urls && msg.image_urls.length > 0) {
+        imagesHtml = '<div class="msg-images">';
+        msg.image_urls.forEach(url => {
+          imagesHtml += `<img src="${url}" onclick="window.open('${url}', '_blank')">`;
+        });
+        imagesHtml += '</div>';
+      }
+
       div.innerHTML = `
         <div class="msg">
           <div class="author">${escapeHtml(msg.user_name)}</div>
-          <div class="msg-text">${escapeHtml(msg.message)}</div>
+          ${msg.message ? `<div class="msg-text">${escapeHtml(msg.message)}</div>` : ''}
+          ${imagesHtml}
         </div>
         <div class="time-area">
           <div class="time">${time}</div>
@@ -581,12 +707,12 @@
         </div>
       `;
       box.appendChild(div);
-      setTimeout(() => { box.scrollTop = box.scrollHeight; }, 50);
+      setTimeout(() => { box.scrollTop = box.scrollHeight; }, 100);
 
       if (isMine) {
         document.getElementById(`del-${msg.id}`).onclick = () => deleteMessage(msg.id);
       } else {
-        document.getElementById(`rep-${msg.id}`).onclick = () => reportMessage(msg.id, msg.user_id, msg.message, msg.room_number);
+        document.getElementById(`rep-${msg.id}`).onclick = () => reportMessage(msg.id, msg.user_id, msg.message || "[画像のみ]", msg.room_number);
       }
     }
 
@@ -595,7 +721,6 @@
       return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
     }
 
-    // --- 管理者専用パネル機能 ---
     async function openAdminPanel() {
       document.getElementById('appCard').dataset.state = 'admin';
       const listEl = document.getElementById('adminReportList');
@@ -604,7 +729,7 @@
       const { data, error } = await supabaseClient.from('reports').select('*').order('created_at', { ascending: false });
       
       if (error) {
-        listEl.innerHTML = `<p style="color:red;">読込エラー: ${error.message}<br>※Supabaseに 'reports' と 'banned_users' テーブルを作成してください。</p>`;
+        listEl.innerHTML = `<p style="color:red;">読込エラー: ${error.message}</p>`;
         return;
       }
 
@@ -626,8 +751,8 @@
             <div class="msg-box">${escapeHtml(report.message_text)}</div>
             <div class="actions">
               <button class="btn-warn" onclick="adminDeleteMessage('${report.message_id}', '${report.id}')">メッセージを削除</button>
-              <button class="btn-ban" onclick="adminBanUser('${report.reported_user_id}', '${report.id}')">ユーザーをBAN (消去)</button>
-              <button class="btn-ignore" onclick="adminDismissReport('${report.id}')">破棄(問題なし)</button>
+              <button class="btn-ban" onclick="adminBanUser('${report.reported_user_id}', '${report.id}')">ユーザーをBAN</button>
+              <button class="btn-ignore" onclick="adminDismissReport('${report.id}')">破棄</button>
             </div>
           </div>
         `;
@@ -643,19 +768,16 @@
     }
 
     async function adminBanUser(userId, reportId) {
-      const isOk = await customConfirm("本当にこのユーザーをBAN（アカウント強制利用停止）しますか？\n二度とログインできなくなります。", "BAN実行", "BANする");
+      const isOk = await customConfirm("本当にこのユーザーをBAN（アカウント強制利用停止）しますか？", "BAN実行", "BANする");
       if (!isOk) return;
       
-      // BANリストに追加
       const { error } = await supabaseClient.from('banned_users').insert([{ user_id: userId }]);
       if (error) {
         await customAlert("BANに失敗しました: " + error.message);
         return;
       }
 
-      // 該当ユーザーの全メッセージを消去（任意だが徹底するため）
       await supabaseClient.from('messages').delete().eq('user_id', userId);
-      
       await adminDismissReport(reportId, false);
       await customAlert("ユーザーをBANし、過去のメッセージをすべて削除しました。");
     }
