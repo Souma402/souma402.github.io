@@ -3,22 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Roomie 快適なチャットを</title>
+  <title>Roomie(ルーミー)</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#3ecf8e">
   <link rel="apple-touch-icon" href="icon-192.png">
-
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js')
-          .then(reg => console.log('Service Worker 登録成功:', reg.scope))
-          .catch(err => console.log('Service Worker 登録失敗:', err));
-      });
-    }
-  </script>
 
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <script>
@@ -94,10 +84,16 @@
     .icon-btn:hover { background: rgba(255, 255, 255, 0.3); }
     .icon-btn.right { right: 12px; }
     .icon-btn.left { left: 12px; }
+    
+    /* タブ切り替え */
+    .sidebar-tabs { display: flex; background: #fff; border-bottom: 1px solid #eee; flex-shrink: 0; }
+    .tab-btn { flex: 1; padding: 12px; border: none; background: none; font-weight: bold; color: #888; cursor: pointer; border-bottom: 3px solid transparent; font-size: 14px; }
+    .tab-btn.active { color: #3ecf8e; border-bottom: 3px solid #3ecf8e; }
 
     .room-list-container { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
     .room-list { flex: 1; overflow-y: auto; padding: 10px; }
-    .room-item { background: #fff; padding: 16px; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .room-item { background: #fff; padding: 16px; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid transparent; }
+    .room-item:hover { border-left: 4px solid #3ecf8e; }
     .room-name { font-weight: bold; font-size: 16px; color: #333; }
     .room-number { font-size: 12px; color: #888; margin-top: 4px; }
     
@@ -106,11 +102,11 @@
     .bottom-actions button { flex: 1; padding: 12px 0; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; }
     .btn-create { background: #3ecf8e; color: #fff; }
     .btn-join { background: #e0e0e0; color: #333; }
+    .btn-dm { background: #0084ff; color: #fff; width: 100%; }
 
     .chat-empty { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; background: #f4f6f8; color: #888; font-size: 14px; }
     .chat-messages { flex: 1; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #fff; }
     
-    /* 画像プレビューエリア */
     .image-preview-area {
       display: none; padding: 8px 12px; background: #f9f9f9; border-top: 1px solid #eee; gap: 10px; overflow-x: auto; flex-shrink: 0;
     }
@@ -123,11 +119,9 @@
     
     .chat-input-area { padding: 12px; border-top: 1px solid #eee; display: flex; gap: 8px; background: #fff; flex-shrink: 0; align-items: center; }
     .chat-input-area input[type="text"] { flex: 1; margin-bottom: 0; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; }
-    .chat-input-area button { background: #3ecf8e; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    .chat-input-area button { background: #3ecf8e; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: background 0.2s;}
     
-    .image-upload-btn { 
-      font-size: 20px; cursor: pointer; padding: 8px; color: #666; transition: color 0.2s; 
-    }
+    .image-upload-btn { font-size: 20px; cursor: pointer; padding: 8px; color: #666; transition: color 0.2s; }
     .image-upload-btn:hover { color: #3ecf8e; }
 
     .msg-wrapper { display: flex; align-items: flex-end; gap: 6px; max-width: 85%; align-self: flex-start; }
@@ -135,7 +129,6 @@
     .msg { background: #f0f2f5; padding: 8px 14px; border-radius: 16px; font-size: 15px; line-height: 1.4; width: fit-content; text-align: left; }
     .msg-text { white-space: pre-wrap; word-break: break-word; }
     
-    /* チャット内の画像 */
     .msg-images { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
     .msg-images img { max-width: 100%; max-height: 200px; border-radius: 8px; cursor: pointer; object-fit: contain; }
     
@@ -176,7 +169,6 @@
       .app-card[data-state="admin"] .admin-content { display: flex !important; }
     }
     
-    /* 読み込み中オーバーレイ */
     .loading-overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
       background: rgba(255,255,255,0.7); display: none; justify-content: center; align-items: center;
@@ -230,6 +222,7 @@
     </div>
   </div>
 
+  <!-- ルーム系モーダル -->
   <div class="modal-overlay" id="createRoomModal" style="display: none;">
     <div class="card">
       <h3>新しいルームを作成</h3>
@@ -243,7 +236,6 @@
       </div>
     </div>
   </div>
-
   <div class="modal-overlay" id="joinRoomModal" style="display: none;">
     <div class="card">
       <h3>ルームに参加</h3>
@@ -252,6 +244,19 @@
       <div class="button-group">
         <button class="primary-btn cancel-btn" onclick="closeModals()">キャンセル</button>
         <button class="primary-btn" onclick="joinRoom()">参加</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DM作成モーダル -->
+  <div class="modal-overlay" id="createDMModal" style="display: none;">
+    <div class="card">
+      <h3>新しいDMを始める</h3>
+      <p style="margin-bottom: 15px;">メッセージを送りたい相手の<br>「アカウント名」を正確に入力してください。</p>
+      <input type="text" id="newDMTargetName" placeholder="相手のアカウント名">
+      <div class="button-group">
+        <button class="primary-btn cancel-btn" onclick="closeModals()">キャンセル</button>
+        <button class="primary-btn" style="background: #0084ff;" onclick="startNewDM()">メッセージ</button>
       </div>
     </div>
   </div>
@@ -265,9 +270,18 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
         </button>
       </div>
+      
+      <!-- タブメニュー -->
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" id="tabRooms" onclick="switchTab('rooms')">ルーム</button>
+        <button class="tab-btn" id="tabDMs" onclick="switchTab('dms')">DM</button>
+      </div>
+
       <div class="room-list-container">
-        <div class="room-list" id="roomList"></div>
-        <div class="bottom-actions">
+        <div class="room-list" id="sidebarList"></div>
+        
+        <!-- 下部アクションエリア -->
+        <div class="bottom-actions" id="bottomActionsRooms">
           <div class="row-btns">
             <button class="btn-create" onclick="openCreateRoomModal()">新規作成</button>
             <button class="btn-join" onclick="openJoinRoomModal()">参加</button>
@@ -276,41 +290,42 @@
             <button style="width: 100%; background: #ff4d4f; color: #fff; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; border:none;" onclick="openAdminPanel()">通報管理パネル</button>
           </div>
         </div>
+        
+        <div class="bottom-actions" id="bottomActionsDMs" style="display: none;">
+          <button class="btn-dm" onclick="openCreateDMModal()">新規DM作成</button>
+        </div>
       </div>
     </div>
 
     <div class="main-content" id="mainContent" style="position:relative;">
-      <!-- 送信中のローディング -->
       <div id="chatLoading" class="loading-overlay">送信中...</div>
 
-      <div class="app-header">
-        <button class="icon-btn left" id="backBtn" onclick="showRoomList()">
+      <div class="app-header" id="chatHeader">
+        <button class="icon-btn left" id="backBtn" onclick="showList()">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
         </button>
         <div class="app-header-title" id="headerTitle">未選択</div>
       </div>
       <div id="chatEmptyArea" class="chat-empty">
-        <p>ルームを選択してください</p>
+        <p>トークを選択してください</p>
       </div>
       <div id="chatActiveArea" style="display: none; flex: 1; flex-direction: column; overflow: hidden;">
         <div class="chat-messages" id="chatBox"></div>
         
-        <!-- 画像プレビュー -->
         <div id="imagePreviewArea" class="image-preview-area"></div>
         
-        <!-- 入力エリア -->
         <div class="chat-input-area">
           <label for="imageUpload" class="image-upload-btn">📷</label>
           <input type="file" id="imageUpload" multiple accept="image/*" style="display: none;" onchange="handleImageSelect(event)">
           <input type="text" id="messageInput" placeholder="メッセージを入力..." onkeypress="if(event.key==='Enter') sendMessage()">
-          <button onclick="sendMessage()">送信</button>
+          <button id="sendBtn" onclick="sendMessage()">送信</button>
         </div>
       </div>
     </div>
 
     <div class="admin-content" id="adminContent">
       <div class="app-header admin-header">
-        <button class="icon-btn left" onclick="showRoomList()">戻る</button>
+        <button class="icon-btn left" onclick="showList()">戻る</button>
         <div class="app-header-title">通報管理パネル</div>
       </div>
       <div style="flex: 1; overflow-y: auto; padding: 16px; background: #f4f6f8;" id="adminReportList">
@@ -328,82 +343,37 @@
 
     let isSignUpMode = false;
     let currentUser = null;
-    let currentRoomNumber = null;
-    let realtimeChannel = null;
     let myRooms = [];
     
-    // 選択された画像を保持する配列
+    // 状態管理
+    let currentTab = 'rooms'; // 'rooms' or 'dms'
+    let currentRoomNumber = null;
+    let currentDMTarget = null;
+    let realtimeChannel = null;
     let selectedImageFiles = [];
 
-    let alertResolve = null;
-    let confirmResolve = null;
-    function customAlert(message, title = 'お知らせ') {
-      return new Promise((resolve) => {
-        document.getElementById('customAlertTitle').textContent = title;
-        document.getElementById('customAlertMessage').textContent = message;
-        document.getElementById('customAlertModal').style.display = 'flex';
-        alertResolve = resolve;
-      });
-    }
-    function closeCustomAlert() {
-      document.getElementById('customAlertModal').style.display = 'none';
-      if (alertResolve) alertResolve();
-    }
-    function customConfirm(message, title = '確認', okText = 'OK') {
-      return new Promise((resolve) => {
-        document.getElementById('customConfirmTitle').textContent = title;
-        document.getElementById('customConfirmMessage').textContent = message;
-        document.getElementById('customConfirmOkBtn').textContent = okText;
-        document.getElementById('customConfirmModal').style.display = 'flex';
-        confirmResolve = resolve;
-      });
-    }
-    function closeCustomConfirm(result) {
-      document.getElementById('customConfirmModal').style.display = 'none';
-      if (confirmResolve) confirmResolve(result);
-    }
+    // モーダル共通
+    let alertResolve = null, confirmResolve = null;
+    function customAlert(message, title = 'お知らせ') { return new Promise((resolve) => { document.getElementById('customAlertTitle').textContent = title; document.getElementById('customAlertMessage').textContent = message; document.getElementById('customAlertModal').style.display = 'flex'; alertResolve = resolve; }); }
+    function closeCustomAlert() { document.getElementById('customAlertModal').style.display = 'none'; if (alertResolve) alertResolve(); }
+    function customConfirm(message, title = '確認', okText = 'OK') { return new Promise((resolve) => { document.getElementById('customConfirmTitle').textContent = title; document.getElementById('customConfirmMessage').textContent = message; document.getElementById('customConfirmOkBtn').textContent = okText; document.getElementById('customConfirmModal').style.display = 'flex'; confirmResolve = resolve; }); }
+    function closeCustomConfirm(result) { document.getElementById('customConfirmModal').style.display = 'none'; if (confirmResolve) confirmResolve(result); }
+    function closeModals() { document.getElementById('createRoomModal').style.display = 'none'; document.getElementById('joinRoomModal').style.display = 'none'; document.getElementById('createDMModal').style.display = 'none'; }
 
-    window.onload = () => {
-      setTimeout(() => {
-        const splash = document.getElementById('splashScreen');
-        splash.style.opacity = '0';
-        setTimeout(() => {
-          splash.style.display = 'none';
-          document.getElementById('appPasswordModal').style.display = 'flex';
-        }, 500);
-      }, 1200);
-    };
+    window.onload = () => { setTimeout(() => { const splash = document.getElementById('splashScreen'); splash.style.opacity = '0'; setTimeout(() => { splash.style.display = 'none'; document.getElementById('appPasswordModal').style.display = 'flex'; }, 500); }, 1200); };
 
     function nameToEmail(username) { return `${encodeURIComponent(username.trim().toLowerCase())}@roomie.app`; }
-
-    function checkAppPassword() {
-      if (document.getElementById('appPassInput').value === APP_PASSWORD) {
-        document.getElementById('appPasswordModal').style.display = 'none';
-        checkSession(); 
-      } else {
-        document.getElementById('appErrorMsg').textContent = '合言葉が違います';
-      }
-    }
+    function checkAppPassword() { if (document.getElementById('appPassInput').value === APP_PASSWORD) { document.getElementById('appPasswordModal').style.display = 'none'; checkSession(); } else { document.getElementById('appErrorMsg').textContent = '合言葉が違います'; } }
 
     async function verifyBanStatus(userId) {
       const { data } = await supabaseClient.from('banned_users').select('id').eq('user_id', userId);
-      if (data && data.length > 0) {
-        await customAlert("このアカウントは管理者により利用が停止(BAN)されています。", "利用停止");
-        await supabaseClient.auth.signOut();
-        location.reload();
-        return true;
-      }
+      if (data && data.length > 0) { await customAlert("このアカウントは管理者により利用が停止(BAN)されています。", "利用停止"); await supabaseClient.auth.signOut(); location.reload(); return true; }
       return false;
     }
 
     async function checkSession() {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (session) {
-        if (await verifyBanStatus(session.user.id)) return;
-        setupUser(session.user);
-      } else {
-        document.getElementById('authModal').style.display = 'flex';
-      }
+      if (session) { if (await verifyBanStatus(session.user.id)) return; setupUser(session.user); } else { document.getElementById('authModal').style.display = 'flex'; }
     }
 
     function toggleAuthMode() {
@@ -418,301 +388,296 @@
       const username = document.getElementById('usernameInput').value.trim();
       const password = document.getElementById('passwordInput').value;
       if (!username || !password) return;
-
       const email = nameToEmail(username);
-      const func = isSignUpMode 
-        ? supabaseClient.auth.signUp({ email, password, options: { data: { display_name: username, my_rooms: [] } } }) 
-        : supabaseClient.auth.signInWithPassword({ email, password });
-      
+      const func = isSignUpMode ? supabaseClient.auth.signUp({ email, password, options: { data: { display_name: username, my_rooms: [] } } }) : supabaseClient.auth.signInWithPassword({ email, password });
       const { data, error } = await func;
-      if (error) {
-        document.getElementById('authErrorMsg').textContent = 'エラー: ' + error.message;
-      } else {
-        if (await verifyBanStatus(data.user.id)) return;
-        document.getElementById('authModal').style.display = 'none';
-        setupUser(data.user);
-      }
+      if (error) { document.getElementById('authErrorMsg').textContent = 'エラー: ' + error.message; } else { if (await verifyBanStatus(data.user.id)) return; document.getElementById('authModal').style.display = 'none'; setupUser(data.user); }
     }
 
     function setupUser(user) {
       currentUser = user;
       myRooms = currentUser.user_metadata.my_rooms || [];
       document.getElementById('appCard').style.display = 'flex';
-      
-      if (currentUser.user_metadata.display_name === '管理者') {
-        document.getElementById('adminBtnArea').style.display = 'block';
-      }
-
+      if (currentUser.user_metadata.display_name === '管理者') document.getElementById('adminBtnArea').style.display = 'block';
       OneSignalDeferred.push(function(OneSignal) { OneSignal.login(currentUser.id); });
-      showRoomList();
+      switchTab('rooms');
     }
 
-    async function executeLogout() {
-      const isOk = await customConfirm("本当にログアウトしますか？");
-      if(!isOk) return;
-      await supabaseClient.auth.signOut();
-      currentUser = null;
-      location.reload(); 
-    }
+    async function executeLogout() { const isOk = await customConfirm("本当にログアウトしますか？"); if(!isOk) return; await supabaseClient.auth.signOut(); currentUser = null; location.reload(); }
 
-    function openCreateRoomModal() {
-      document.getElementById('newRoomName').value = '';
-      document.getElementById('newRoomNumber').value = Math.floor(100000 + Math.random() * 900000);
-      document.getElementById('newRoomPassword').value = '';
-      document.getElementById('createRoomModal').style.display = 'flex';
-    }
-    function openJoinRoomModal() {
-      document.getElementById('joinRoomNumber').value = '';
-      document.getElementById('joinRoomPassword').value = '';
-      document.getElementById('joinRoomModal').style.display = 'flex';
-    }
-    function closeModals() {
-      document.getElementById('createRoomModal').style.display = 'none';
-      document.getElementById('joinRoomModal').style.display = 'none';
-    }
-
-    async function createRoom() {
-      const name = document.getElementById('newRoomName').value.trim() || '無名のルーム';
-      const num = document.getElementById('newRoomNumber').value;
-      const pass = document.getElementById('newRoomPassword').value;
-      if(!pass) return;
-      const { error } = await supabaseClient.from('rooms').insert([{ room_number: num, password: pass, room_name: name }]);
-      if (!error) { await addRoomToList(num); closeModals(); }
-    }
-
-    async function joinRoom() {
-      const num = document.getElementById('joinRoomNumber').value;
-      const pass = document.getElementById('joinRoomPassword').value;
-      const { data } = await supabaseClient.from('rooms').select('*').eq('room_number', num).eq('password', pass);
-      if (data && data.length > 0) {
-        await addRoomToList(num);
-        closeModals();
+    // --- タブ＆リスト表示ロジック ---
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('tabRooms').className = tab === 'rooms' ? 'tab-btn active' : 'tab-btn';
+      document.getElementById('tabDMs').className = tab === 'dms' ? 'tab-btn active' : 'tab-btn';
+      
+      if (tab === 'rooms') {
+        document.getElementById('bottomActionsRooms').style.display = 'flex';
+        document.getElementById('bottomActionsDMs').style.display = 'none';
+        document.getElementById('chatHeader').style.background = '#3ecf8e';
+        document.getElementById('sendBtn').style.background = '#3ecf8e';
+        showRoomList();
       } else {
-        await customAlert("ルームナンバーかパスワードが違います");
+        document.getElementById('bottomActionsRooms').style.display = 'none';
+        document.getElementById('bottomActionsDMs').style.display = 'flex';
+        document.getElementById('chatHeader').style.background = '#0084ff';
+        document.getElementById('sendBtn').style.background = '#0084ff';
+        showDMList();
       }
     }
 
-    async function addRoomToList(num) {
-      if (!myRooms.includes(String(num))) {
-        myRooms.push(String(num));
-        await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } });
-      }
-      showRoomList();
+    function showList() {
+      if (currentTab === 'rooms') showRoomList();
+      else showDMList();
     }
 
-    async function showRoomList() {
+    function resetChatArea() {
       currentRoomNumber = null;
+      currentDMTarget = null;
       document.getElementById('appCard').dataset.state = 'list';
       document.getElementById('headerTitle').textContent = '未選択';
       document.getElementById('chatActiveArea').style.display = 'none';
       document.getElementById('chatEmptyArea').style.display = 'flex';
-      
-      const listEl = document.getElementById('roomList');
-      if (myRooms.length === 0) {
-        listEl.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">参加中のルームはありません</p>';
-      } else {
-        const { data } = await supabaseClient.from('rooms').select('room_number, room_name').in('room_number', myRooms);
-        listEl.innerHTML = '';
-        if (data && data.length > 0) {
-          data.forEach(room => {
-            const safeName = escapeHtml(room.room_name);
-            listEl.innerHTML += `
-              <div class="room-item" onclick="openChat('${room.room_number}', '${safeName}')">
-                <div>
-                  <div class="room-name">${safeName}</div>
-                  <div class="room-number">No. ${room.room_number}</div>
-                </div>
-              </div>
-            `;
-          });
-        }
-      }
       if (realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); realtimeChannel = null; }
     }
 
-    async function openChat(num, name) {
+    // --- ルーム機能 ---
+    function openCreateRoomModal() { document.getElementById('newRoomName').value = ''; document.getElementById('newRoomNumber').value = Math.floor(100000 + Math.random() * 900000); document.getElementById('newRoomPassword').value = ''; document.getElementById('createRoomModal').style.display = 'flex'; }
+    function openJoinRoomModal() { document.getElementById('joinRoomNumber').value = ''; document.getElementById('joinRoomPassword').value = ''; document.getElementById('joinRoomModal').style.display = 'flex'; }
+    
+    async function createRoom() { const name = document.getElementById('newRoomName').value.trim() || '無名のルーム'; const num = document.getElementById('newRoomNumber').value; const pass = document.getElementById('newRoomPassword').value; if(!pass) return; const { error } = await supabaseClient.from('rooms').insert([{ room_number: num, password: pass, room_name: name }]); if (!error) { await addRoomToList(num); closeModals(); } }
+    async function joinRoom() { const num = document.getElementById('joinRoomNumber').value; const pass = document.getElementById('joinRoomPassword').value; const { data } = await supabaseClient.from('rooms').select('*').eq('room_number', num).eq('password', pass); if (data && data.length > 0) { await addRoomToList(num); closeModals(); } else { await customAlert("ルームナンバーかパスワードが違います"); } }
+    async function addRoomToList(num) { if (!myRooms.includes(String(num))) { myRooms.push(String(num)); await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } }); } showRoomList(); }
+
+    async function showRoomList() {
+      resetChatArea();
+      const listEl = document.getElementById('sidebarList');
+      if (myRooms.length === 0) { listEl.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">参加中のルームはありません</p>'; return; }
+      const { data } = await supabaseClient.from('rooms').select('room_number, room_name').in('room_number', myRooms);
+      listEl.innerHTML = '';
+      if (data && data.length > 0) {
+        data.forEach(room => {
+          const safeName = escapeHtml(room.room_name);
+          listEl.innerHTML += `<div class="room-item" onclick="openChatRoom('${room.room_number}', '${safeName}')"><div><div class="room-name">${safeName}</div><div class="room-number">No. ${room.room_number}</div></div></div>`;
+        });
+      }
+    }
+
+    async function openChatRoom(num, name) {
       currentRoomNumber = num;
       document.getElementById('headerTitle').textContent = name;
-      document.getElementById('chatEmptyArea').style.display = 'none';
-      document.getElementById('chatActiveArea').style.display = 'flex';
-      document.getElementById('appCard').dataset.state = 'chat';
-      
-      clearImageSelection();
-
-      const box = document.getElementById('chatBox');
-      box.innerHTML = '';
-      
+      setupChatUI();
       const { data } = await supabaseClient.from('messages').select('*').eq('room_number', num).order('created_at', { ascending: true });
-      if(data) data.forEach(appendMessage);
+      if(data) data.forEach(msg => appendMessage(msg, false));
 
-      if (realtimeChannel) supabaseClient.removeChannel(realtimeChannel);
-      realtimeChannel = supabaseClient.channel('custom-all-channel')
+      realtimeChannel = supabaseClient.channel('room-channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `room_number=eq.${num}` }, payload => {
-          if (payload.eventType === 'INSERT') appendMessage(payload.new);
-          if (payload.eventType === 'DELETE') {
-            const el = document.getElementById(`msg-${payload.old.id}`);
-            if (el) el.remove();
-          }
+          if (payload.eventType === 'INSERT') appendMessage(payload.new, false);
+          if (payload.eventType === 'DELETE') { const el = document.getElementById(`msg-room-${payload.old.id}`); if (el) el.remove(); }
         }).subscribe();
     }
 
-    // --- 画像の選択・プレビュー処理 ---
+    // --- DM機能 ---
+    function openCreateDMModal() {
+      document.getElementById('newDMTargetName').value = '';
+      document.getElementById('createDMModal').style.display = 'flex';
+    }
+
+    function startNewDM() {
+      const target = document.getElementById('newDMTargetName').value.trim();
+      const myName = currentUser.user_metadata.display_name;
+      if (!target) return;
+      if (target === myName) { customAlert("自分自身にはDMを送れません。"); return; }
+      closeModals();
+      openDMChat(target);
+    }
+
+    async function showDMList() {
+      resetChatArea();
+      const listEl = document.getElementById('sidebarList');
+      const myName = currentUser.user_metadata.display_name;
+      
+      const { data, error } = await supabaseClient.from('dms').select('sender_name, receiver_name').or(`sender_name.eq.${myName},receiver_name.eq.${myName}`);
+      
+      if (error) { listEl.innerHTML = '<p style="text-align:center; color:red; margin-top:20px;">読込エラー(dmsテーブルを確認)</p>'; return; }
+      
+      const dmPartners = new Set();
+      if (data) {
+        data.forEach(dm => {
+          if (dm.sender_name === myName) dmPartners.add(dm.receiver_name);
+          if (dm.receiver_name === myName) dmPartners.add(dm.sender_name);
+        });
+      }
+
+      listEl.innerHTML = '';
+      if (dmPartners.size === 0) {
+        listEl.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">DMの履歴はありません</p>';
+      } else {
+        dmPartners.forEach(partner => {
+          const safeName = escapeHtml(partner);
+          listEl.innerHTML += `<div class="room-item" style="border-left-color: #0084ff;" onclick="openDMChat('${safeName}')"><div><div class="room-name">${safeName}</div><div class="room-number">ダイレクトメッセージ</div></div></div>`;
+        });
+      }
+    }
+
+    async function openDMChat(targetName) {
+      currentDMTarget = targetName;
+      document.getElementById('headerTitle').textContent = targetName + " とのDM";
+      setupChatUI();
+      
+      const myName = currentUser.user_metadata.display_name;
+      const { data } = await supabaseClient.from('dms')
+        .select('*')
+        .or(`and(sender_name.eq.${myName},receiver_name.eq.${targetName}),and(sender_name.eq.${targetName},receiver_name.eq.${myName})`)
+        .order('created_at', { ascending: true });
+        
+      if(data) data.forEach(msg => appendMessage(msg, true));
+
+      realtimeChannel = supabaseClient.channel('dm-channel')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'dms' }, payload => {
+          const isRelevant = (payload.new.sender_name === myName && payload.new.receiver_name === targetName) || (payload.new.sender_name === targetName && payload.new.receiver_name === myName);
+          if (payload.eventType === 'INSERT' && isRelevant) appendMessage(payload.new, true);
+          if (payload.eventType === 'DELETE') { const el = document.getElementById(`msg-dm-${payload.old.id}`); if (el) el.remove(); }
+        }).subscribe();
+    }
+
+    function setupChatUI() {
+      document.getElementById('chatEmptyArea').style.display = 'none';
+      document.getElementById('chatActiveArea').style.display = 'flex';
+      document.getElementById('appCard').dataset.state = 'chat';
+      document.getElementById('chatBox').innerHTML = '';
+      clearImageSelection();
+    }
+
+    // --- 画像・メッセージ送信共通処理 ---
     function handleImageSelect(event) {
       const files = Array.from(event.target.files);
-      if (selectedImageFiles.length + files.length > 5) {
-        customAlert("一度に送信できる画像は最大5枚までです。");
-        return;
-      }
+      if (selectedImageFiles.length + files.length > 5) { customAlert("一度に送信できる画像は最大5枚までです。"); return; }
       selectedImageFiles = selectedImageFiles.concat(files).slice(0, 5);
       renderImagePreview();
-      // inputをリセット（同じ画像を再度選べるようにするため）
       document.getElementById('imageUpload').value = '';
     }
 
     function renderImagePreview() {
       const area = document.getElementById('imagePreviewArea');
       area.innerHTML = '';
-      if (selectedImageFiles.length === 0) {
-        area.style.display = 'none';
-        return;
-      }
+      if (selectedImageFiles.length === 0) { area.style.display = 'none'; return; }
       area.style.display = 'flex';
       selectedImageFiles.forEach((file, index) => {
         const url = URL.createObjectURL(file);
-        const div = document.createElement('div');
-        div.className = 'preview-item';
-        div.innerHTML = `
-          <img src="${url}">
-          <button class="preview-remove-btn" onclick="removeImage(${index})">×</button>
-        `;
-        area.appendChild(div);
+        area.innerHTML += `<div class="preview-item"><img src="${url}"><button class="preview-remove-btn" onclick="removeImage(${index})">×</button></div>`;
       });
     }
 
-    function removeImage(index) {
-      selectedImageFiles.splice(index, 1);
-      renderImagePreview();
-    }
+    function removeImage(index) { selectedImageFiles.splice(index, 1); renderImagePreview(); }
+    function clearImageSelection() { selectedImageFiles = []; renderImagePreview(); }
 
-    function clearImageSelection() {
-      selectedImageFiles = [];
-      renderImagePreview();
-    }
-
-    // --- メッセージ＆画像送信処理 ---
     async function sendMessage() {
       const input = document.getElementById('messageInput');
       const text = input.value.trim();
       
       if (!text && selectedImageFiles.length === 0) return;
-      if (!currentRoomNumber) return;
+      if (!currentRoomNumber && !currentDMTarget) return;
       
-      // 送信中UI
       document.getElementById('chatLoading').style.display = 'flex';
-      
       const imageUrls = [];
       
-      // 画像がある場合は Storage にアップロード
       if (selectedImageFiles.length > 0) {
         for (let file of selectedImageFiles) {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-          
-          const { error: uploadError } = await supabaseClient.storage
-            .from('chat-images')
-            .upload(fileName, file);
-            
-          if (uploadError) {
-            console.error("画像アップロードエラー:", uploadError);
-            continue;
-          }
-          
-          const { data } = supabaseClient.storage.from('chat-images').getPublicUrl(fileName);
-          imageUrls.push(data.publicUrl);
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${file.name.split('.').pop()}`;
+          const { error: uploadError } = await supabaseClient.storage.from('chat-images').upload(fileName, file);
+          if (!uploadError) { const { data } = supabaseClient.storage.from('chat-images').getPublicUrl(fileName); imageUrls.push(data.publicUrl); }
         }
       }
 
-      // DBにメッセージ保存
-      const { error } = await supabaseClient.from('messages').insert([{
-        room_number: currentRoomNumber, 
-        user_name: currentUser.user_metadata.display_name,
-        user_id: currentUser.id, 
-        message: text,
-        image_urls: imageUrls // アップロードした画像のURL配列（空の場合は[]になる）
-      }]);
+      let error = null;
+      if (currentRoomNumber) {
+        const res = await supabaseClient.from('messages').insert([{ room_number: currentRoomNumber, user_name: currentUser.user_metadata.display_name, user_id: currentUser.id, message: text, image_urls: imageUrls }]);
+        error = res.error;
+      } else if (currentDMTarget) {
+        const res = await supabaseClient.from('dms').insert([{ sender_id: currentUser.id, sender_name: currentUser.user_metadata.display_name, receiver_name: currentDMTarget, message: text, image_urls: imageUrls }]);
+        error = res.error;
+      }
       
       document.getElementById('chatLoading').style.display = 'none';
 
       if (error) {
-        await customAlert("メッセージの送信に失敗しました。\nimage_urlsカラムが作成されているか確認してください。");
+        await customAlert("送信失敗。\nDMの場合はdmsテーブルが作成されているか確認してください。");
       } else {
-        input.value = '';
-        clearImageSelection();
+        input.value = ''; clearImageSelection();
       }
     }
 
-    async function deleteMessage(id) {
+    async function deleteMessage(id, isDM) {
       const isOk = await customConfirm("このメッセージを削除しますか？");
-      if (isOk) await supabaseClient.from('messages').delete().eq('id', id);
+      if (isOk) {
+        const table = isDM ? 'dms' : 'messages';
+        await supabaseClient.from(table).delete().eq('id', id);
+      }
     }
 
-    async function reportMessage(msgId, targetUserId, text, roomNum) {
-      const isOk = await customConfirm("このメッセージを荒らし・不適切として管理者に通報しますか？\n（いたずらな通報はおやめください）", "通報する", "通報");
+    async function reportMessage(msgId, targetUserId, text, roomNum, isDM) {
+      const isOk = await customConfirm("このメッセージを管理者に通報しますか？");
       if (!isOk) return;
+      
+      const rNum = isDM ? `DM: ${currentDMTarget}` : roomNum; // Adminで判別できるようにDMをマーキング
 
       const { error } = await supabaseClient.from('reports').insert([{
-        message_id: msgId, room_number: roomNum, message_text: text,
-        reported_by: currentUser.id, reported_user_id: targetUserId
+        message_id: msgId, room_number: rNum, message_text: text, reported_by: currentUser.id, reported_user_id: targetUserId || 'DM_User'
       }]);
 
-      if (error) {
-        await customAlert("通報に失敗しました。\n" + error.message);
-      } else {
-        await customAlert("通報が完了しました。管理者が確認して対応します。");
-      }
+      if (error) await customAlert("通報に失敗しました。");
+      else await customAlert("通報が完了しました。");
     }
 
-    function appendMessage(msg) {
+    function appendMessage(msg, isDM) {
       if (!msg) return;
-      // テキストも画像もない場合はスキップ
       if (!msg.message && (!msg.image_urls || msg.image_urls.length === 0)) return;
       
       const box = document.getElementById('chatBox');
       const div = document.createElement('div');
-      div.id = `msg-${msg.id}`;
       
-      const isMine = (msg.user_id === currentUser.id);
+      const prefix = isDM ? 'dm' : 'room';
+      div.id = `msg-${prefix}-${msg.id}`;
+      
+      // DMの場合はsender_id、Roomの場合はuser_idで判別
+      const authorId = isDM ? msg.sender_id : msg.user_id;
+      const authorName = isDM ? msg.sender_name : msg.user_name;
+      
+      const isMine = (authorId === currentUser.id);
       div.className = isMine ? 'msg-wrapper my-msg-wrapper' : 'msg-wrapper';
       const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      // 画像のHTMLを生成
       let imagesHtml = '';
       if (msg.image_urls && msg.image_urls.length > 0) {
         imagesHtml = '<div class="msg-images">';
-        msg.image_urls.forEach(url => {
-          imagesHtml += `<img src="${url}" onclick="window.open('${url}', '_blank')">`;
-        });
+        msg.image_urls.forEach(url => { imagesHtml += `<img src="${url}" onclick="window.open('${url}', '_blank')">`; });
         imagesHtml += '</div>';
       }
 
+      // DMの時は相手のメッセージ吹き出しを青っぽくする
+      const otherBg = isDM ? '#e6f2ff' : '#f0f2f5';
+      const authorColor = isDM ? '#0084ff' : '#3ecf8e';
+
       div.innerHTML = `
-        <div class="msg">
-          <div class="author">${escapeHtml(msg.user_name)}</div>
+        <div class="msg" style="${!isMine ? `background: ${otherBg};` : ''}">
+          <div class="author" style="color: ${authorColor};">${escapeHtml(authorName)}</div>
           ${msg.message ? `<div class="msg-text">${escapeHtml(msg.message)}</div>` : ''}
           ${imagesHtml}
         </div>
         <div class="time-area">
           <div class="time">${time}</div>
-          ${isMine ? `<button class="action-btn delete-btn" id="del-${msg.id}">削除</button>` : `<button class="action-btn report-btn" id="rep-${msg.id}">通報</button>`}
+          ${isMine ? `<button class="action-btn delete-btn" id="del-${prefix}-${msg.id}">削除</button>` : `<button class="action-btn report-btn" id="rep-${prefix}-${msg.id}">通報</button>`}
         </div>
       `;
       box.appendChild(div);
       setTimeout(() => { box.scrollTop = box.scrollHeight; }, 100);
 
       if (isMine) {
-        document.getElementById(`del-${msg.id}`).onclick = () => deleteMessage(msg.id);
+        document.getElementById(`del-${prefix}-${msg.id}`).onclick = () => deleteMessage(msg.id, isDM);
       } else {
-        document.getElementById(`rep-${msg.id}`).onclick = () => reportMessage(msg.id, msg.user_id, msg.message || "[画像のみ]", msg.room_number);
+        const rNum = isDM ? null : msg.room_number;
+        document.getElementById(`rep-${prefix}-${msg.id}`).onclick = () => reportMessage(msg.id, authorId, msg.message || "[画像のみ]", rNum, isDM);
       }
     }
 
@@ -721,37 +686,31 @@
       return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
     }
 
+    // --- 管理者パネル ---
     async function openAdminPanel() {
       document.getElementById('appCard').dataset.state = 'admin';
       const listEl = document.getElementById('adminReportList');
       listEl.innerHTML = '<p style="text-align:center; color:#888;">通報データを読み込み中...</p>';
-
       const { data, error } = await supabaseClient.from('reports').select('*').order('created_at', { ascending: false });
       
-      if (error) {
-        listEl.innerHTML = `<p style="color:red;">読込エラー: ${error.message}</p>`;
-        return;
-      }
-
-      if (!data || data.length === 0) {
-        listEl.innerHTML = '<p style="text-align:center; color:#888; margin-top:20px;">現在、通報されているメッセージはありません。</p>';
-        return;
-      }
+      if (error) { listEl.innerHTML = `<p style="color:red;">読込エラー: ${error.message}</p>`; return; }
+      if (!data || data.length === 0) { listEl.innerHTML = '<p style="text-align:center; color:#888; margin-top:20px;">通報されているメッセージはありません。</p>'; return; }
 
       listEl.innerHTML = '';
       data.forEach(report => {
         const date = new Date(report.created_at).toLocaleString();
+        const isDMReport = report.room_number && report.room_number.startsWith('DM:');
         listEl.innerHTML += `
           <div class="report-card" id="report-${report.id}">
             <div class="info">
               日時: ${date}<br>
-              ルーム: No.${report.room_number}<br>
+              種類: <span style="color:${isDMReport ? '#0084ff' : '#3ecf8e'}">${isDMReport ? 'DM' : 'ルーム (No.'+report.room_number+')'}</span><br>
               対象ユーザーID: ${report.reported_user_id}
             </div>
             <div class="msg-box">${escapeHtml(report.message_text)}</div>
             <div class="actions">
-              <button class="btn-warn" onclick="adminDeleteMessage('${report.message_id}', '${report.id}')">メッセージを削除</button>
-              <button class="btn-ban" onclick="adminBanUser('${report.reported_user_id}', '${report.id}')">ユーザーをBAN</button>
+              <button class="btn-warn" onclick="adminDeleteMessage('${report.message_id}', '${report.id}', ${isDMReport})">削除</button>
+              <button class="btn-ban" onclick="adminBanUser('${report.reported_user_id}', '${report.id}')">BAN</button>
               <button class="btn-ignore" onclick="adminDismissReport('${report.id}')">破棄</button>
             </div>
           </div>
@@ -759,34 +718,28 @@
       });
     }
 
-    async function adminDeleteMessage(msgId, reportId) {
+    async function adminDeleteMessage(msgId, reportId, isDMReport) {
       const isOk = await customConfirm("この問題のメッセージを削除しますか？");
       if (!isOk) return;
-      await supabaseClient.from('messages').delete().eq('id', msgId);
+      const table = isDMReport ? 'dms' : 'messages';
+      await supabaseClient.from(table).delete().eq('id', msgId);
       await adminDismissReport(reportId, false);
       await customAlert("メッセージを削除しました。");
     }
 
     async function adminBanUser(userId, reportId) {
-      const isOk = await customConfirm("本当にこのユーザーをBAN（アカウント強制利用停止）しますか？", "BAN実行", "BANする");
+      const isOk = await customConfirm("本当にこのユーザーをBANしますか？", "BAN実行", "BANする");
       if (!isOk) return;
-      
       const { error } = await supabaseClient.from('banned_users').insert([{ user_id: userId }]);
-      if (error) {
-        await customAlert("BANに失敗しました: " + error.message);
-        return;
-      }
-
+      if (error) { await customAlert("BANに失敗しました: " + error.message); return; }
       await supabaseClient.from('messages').delete().eq('user_id', userId);
+      await supabaseClient.from('dms').delete().eq('sender_id', userId); // DM履歴も削除
       await adminDismissReport(reportId, false);
-      await customAlert("ユーザーをBANし、過去のメッセージをすべて削除しました。");
+      await customAlert("ユーザーをBANし、過去のメッセージを削除しました。");
     }
 
     async function adminDismissReport(reportId, showMsg = true) {
-      if (showMsg) {
-        const isOk = await customConfirm("この通報をリストから消去しますか？");
-        if (!isOk) return;
-      }
+      if (showMsg) { const isOk = await customConfirm("この通報をリストから消去しますか？"); if (!isOk) return; }
       await supabaseClient.from('reports').delete().eq('id', reportId);
       const el = document.getElementById(`report-${reportId}`);
       if (el) el.remove();
