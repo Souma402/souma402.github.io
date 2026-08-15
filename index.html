@@ -91,10 +91,14 @@
 
     .room-list-container { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
     .room-list { flex: 1; overflow-y: auto; padding: 10px; }
-    .room-item { background: #fff; padding: 16px; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid transparent; }
+    
+    .room-item { background: #fff; padding: 12px 16px; border-radius: 12px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; border-left: 4px solid transparent; transition: border 0.2s;}
     .room-item:hover { border-left: 4px solid #3ecf8e; }
+    .room-info { flex: 1; cursor: pointer; }
     .room-name { font-weight: bold; font-size: 16px; color: #333; }
     .room-number { font-size: 12px; color: #888; margin-top: 4px; }
+    .hide-btn { background: #f0f0f0; border: none; color: #888; font-size: 11px; font-weight: bold; padding: 6px 12px; border-radius: 6px; cursor: pointer; margin-left: 10px; flex-shrink: 0; transition: background 0.2s; }
+    .hide-btn:hover { background: #e0e0e0; color: #333; }
     
     .bottom-actions { padding: 12px; background: #fff; border-top: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
     .bottom-actions .row-btns { display: flex; gap: 10px; }
@@ -364,18 +368,14 @@
       if (!username || !password) return;
       const email = nameToEmail(username);
       
-      const func = isSignUpMode ? supabaseClient.auth.signUp({ email, password, options: { data: { display_name: username, my_rooms: [] } } }) : supabaseClient.auth.signInWithPassword({ email, password });
+      const func = isSignUpMode ? supabaseClient.auth.signUp({ email, password, options: { data: { display_name: username, my_rooms: [], hidden_rooms: {}, hidden_dms: {} } } }) : supabaseClient.auth.signInWithPassword({ email, password });
       const { data, error } = await func;
       
       if (error) { 
         document.getElementById('authErrorMsg').textContent = 'エラー: ' + error.message; 
       } else { 
         if (await verifyBanStatus(data.user.id)) return; 
-        
-        if (isSignUpMode) {
-          await supabaseClient.from('profiles').insert([{ id: data.user.id, display_name: username }]);
-        }
-        
+        if (isSignUpMode) { await supabaseClient.from('profiles').insert([{ id: data.user.id, display_name: username }]); }
         document.getElementById('authModal').style.display = 'none'; 
         setupUser(data.user); 
       }
@@ -419,18 +419,84 @@
     function openJoinRoomModal() { document.getElementById('joinRoomNumber').value = ''; document.getElementById('joinRoomPassword').value = ''; document.getElementById('joinRoomModal').style.display = 'flex'; }
     async function createRoom() { const name = document.getElementById('newRoomName').value.trim() || '無名のルーム'; const num = document.getElementById('newRoomNumber').value; const pass = document.getElementById('newRoomPassword').value; if(!pass) return; const { error } = await supabaseClient.from('rooms').insert([{ room_number: num, password: pass, room_name: name }]); if (!error) { await addRoomToList(num); closeModals(); } }
     async function joinRoom() { const num = document.getElementById('joinRoomNumber').value; const pass = document.getElementById('joinRoomPassword').value; const { data } = await supabaseClient.from('rooms').select('*').eq('room_number', num).eq('password', pass); if (data && data.length > 0) { await addRoomToList(num); closeModals(); } else { await customAlert("ルームナンバーかパスワードが違います"); } }
-    async function addRoomToList(num) { if (!myRooms.includes(String(num))) { myRooms.push(String(num)); await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } }); } showRoomList(); }
+    
+    async function addRoomToList(num) { 
+      if (!myRooms.includes(String(num))) { 
+        myRooms.push(String(num)); 
+        await supabaseClient.auth.updateUser({ data: { my_rooms: myRooms } }); 
+      }
+      const hiddenRooms = currentUser.user_metadata.hidden_rooms || {};
+      if (hiddenRooms[String(num)]) {
+        delete hiddenRooms[String(num)];
+        await supabaseClient.auth.updateUser({ data: { hidden_rooms: hiddenRooms } });
+        currentUser.user_metadata.hidden_rooms = hiddenRooms;
+      }
+      showRoomList(); 
+    }
+
+    async function hideRoom(roomNum, event) {
+      event.stopPropagation();
+      const isOk = await customConfirm(`ルーム No.${roomNum} を非表示にしますか？\n(誰かが新着メッセージを送信すると再表示されます)`);
+      if (!isOk) return;
+
+      const hiddenRooms = currentUser.user_metadata.hidden_rooms || {};
+      hiddenRooms[roomNum] = new Date().toISOString();
+      
+      await supabaseClient.auth.updateUser({ data: { hidden_rooms: hiddenRooms } });
+      currentUser.user_metadata.hidden_rooms = hiddenRooms;
+      showRoomList();
+    }
 
     async function showRoomList() {
       resetChatArea();
       const listEl = document.getElementById('sidebarList');
       if (myRooms.length === 0) { listEl.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">参加中のルームはありません</p>'; return; }
-      const { data } = await supabaseClient.from('rooms').select('room_number, room_name').in('room_number', myRooms);
+      
+      const { data: rooms } = await supabaseClient.from('rooms').select('room_number, room_name').in('room_number', myRooms);
+      const { data: messages } = await supabaseClient.from('messages').select('room_number, created_at').in('room_number', myRooms).order('created_at', { ascending: false });
+      
+      const roomLastMsg = {};
+      if (messages) {
+        messages.forEach(msg => {
+          if (!roomLastMsg[msg.room_number]) roomLastMsg[msg.room_number] = msg.created_at;
+        });
+      }
+
+      const hiddenRooms = currentUser.user_metadata.hidden_rooms || {};
+      let visibleRooms = [];
+      
+      if (rooms) {
+        visibleRooms = rooms.filter(room => {
+          const hiddenAt = hiddenRooms[room.room_number];
+          if (!hiddenAt) return true;
+          
+          const lastMsgAt = roomLastMsg[room.room_number] || "1970-01-01T00:00:00.000Z";
+          return new Date(lastMsgAt) > new Date(hiddenAt);
+        });
+
+        // ★ 追加：最新メッセージが新しい順（降順）に並び替え
+        visibleRooms.sort((a, b) => {
+          const timeA = new Date(roomLastMsg[a.room_number] || "1970-01-01T00:00:00.000Z").getTime();
+          const timeB = new Date(roomLastMsg[b.room_number] || "1970-01-01T00:00:00.000Z").getTime();
+          return timeB - timeA;
+        });
+      }
+
       listEl.innerHTML = '';
-      if (data && data.length > 0) {
-        data.forEach(room => {
+      if (visibleRooms.length === 0) { 
+        listEl.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">表示するルームはありません</p>'; 
+      } else {
+        visibleRooms.forEach(room => {
           const safeName = escapeHtml(room.room_name);
-          listEl.innerHTML += `<div class="room-item" onclick="openChatRoom('${room.room_number}', '${safeName}')"><div><div class="room-name">${safeName}</div><div class="room-number">No. ${room.room_number}</div></div></div>`;
+          listEl.innerHTML += `
+            <div class="room-item">
+              <div class="room-info" onclick="openChatRoom('${room.room_number}', '${safeName}')">
+                <div class="room-name">${safeName}</div>
+                <div class="room-number">No. ${room.room_number}</div>
+              </div>
+              <button class="hide-btn" onclick="hideRoom('${room.room_number}', event)">非表示</button>
+            </div>
+          `;
         });
       }
     }
@@ -455,31 +521,83 @@
       
       const { data, error } = await supabaseClient.from('profiles').select('display_name').eq('display_name', target);
       if (error || !data || data.length === 0) {
-        customAlert(`「${target}」というユーザーは見つかりません。\n※過去のテスト用アカウントはリストに登録されていないため、一度新規作成し直す必要があります。`);
+        customAlert(`「${target}」というユーザーは見つかりません。\n相手の名前を正確に入力してください。`);
         return;
+      }
+
+      const hiddenDMs = currentUser.user_metadata.hidden_dms || {};
+      if (hiddenDMs[target]) {
+        delete hiddenDMs[target];
+        await supabaseClient.auth.updateUser({ data: { hidden_dms: hiddenDMs } });
+        currentUser.user_metadata.hidden_dms = hiddenDMs;
       }
 
       closeModals();
       openDMChat(target);
     }
 
+    async function hideDM(targetName, event) {
+      event.stopPropagation();
+      const isOk = await customConfirm(`${targetName} とのDMを非表示にしますか？\n(新着メッセージが来ると再表示されます)`);
+      if (!isOk) return;
+
+      const hiddenDMs = currentUser.user_metadata.hidden_dms || {};
+      hiddenDMs[targetName] = new Date().toISOString();
+      
+      await supabaseClient.auth.updateUser({ data: { hidden_dms: hiddenDMs } });
+      currentUser.user_metadata.hidden_dms = hiddenDMs;
+      showDMList();
+    }
+
     async function showDMList() {
       resetChatArea();
       const listEl = document.getElementById('sidebarList');
       const myName = currentUser.user_metadata.display_name;
-      const { data, error } = await supabaseClient.from('dms').select('sender_name, receiver_name').or(`sender_name.eq.${myName},receiver_name.eq.${myName}`);
+      const { data, error } = await supabaseClient.from('dms').select('sender_name, receiver_name, created_at').or(`sender_name.eq.${myName},receiver_name.eq.${myName}`).order('created_at', { ascending: false });
       
-      if (error) { listEl.innerHTML = '<p style="text-align:center; color:red; margin-top:20px;">読込エラー(dmsテーブルの設定・RLSを確認)</p>'; return; }
+      if (error) { listEl.innerHTML = '<p style="text-align:center; color:red; margin-top:20px;">読込エラー</p>'; return; }
       
-      const dmPartners = new Set();
-      if (data) { data.forEach(dm => { if (dm.sender_name === myName) dmPartners.add(dm.receiver_name); if (dm.receiver_name === myName) dmPartners.add(dm.sender_name); }); }
+      const dmPartners = {};
+      if (data) { 
+        data.forEach(dm => { 
+          const partner = dm.sender_name === myName ? dm.receiver_name : dm.sender_name;
+          if (!dmPartners[partner]) dmPartners[partner] = dm.created_at; 
+        }); 
+      }
+
+      const hiddenDMs = currentUser.user_metadata.hidden_dms || {};
+      const visiblePartners = Object.keys(dmPartners).filter(partner => {
+        const hiddenAt = hiddenDMs[partner];
+        if (!hiddenAt) return true;
+        return new Date(dmPartners[partner]) > new Date(hiddenAt);
+      });
+
+      // ★ 追加：DMも明示的に最新メッセージが新しい順（降順）に並び替え
+      visiblePartners.sort((a, b) => {
+        const timeA = new Date(dmPartners[a] || "1970-01-01T00:00:00.000Z").getTime();
+        const timeB = new Date(dmPartners[b] || "1970-01-01T00:00:00.000Z").getTime();
+        return timeB - timeA;
+      });
 
       listEl.innerHTML = '';
-      if (dmPartners.size === 0) { listEl.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">DMの履歴はありません</p>'; } 
-      else { dmPartners.forEach(partner => { const safeName = escapeHtml(partner); listEl.innerHTML += `<div class="room-item" style="border-left-color: #0084ff;" onclick="openDMChat('${safeName}')"><div><div class="room-name">${safeName}</div><div class="room-number">ダイレクトメッセージ</div></div></div>`; }); }
+      if (visiblePartners.length === 0) { 
+        listEl.innerHTML = '<p style="text-align:center; color:#999; margin-top:20px;">表示するDMはありません</p>'; 
+      } else { 
+        visiblePartners.forEach(partner => { 
+          const safeName = escapeHtml(partner); 
+          listEl.innerHTML += `
+            <div class="room-item" style="border-left-color: #0084ff;">
+              <div class="room-info" onclick="openDMChat('${safeName}')">
+                <div class="room-name">${safeName}</div>
+                <div class="room-number">ダイレクトメッセージ</div>
+              </div>
+              <button class="hide-btn" onclick="hideDM('${safeName}', event)">非表示</button>
+            </div>
+          `; 
+        }); 
+      }
     }
 
-    // ★修正ポイント：DMのリアルタイム通信のバグ修正
     async function openDMChat(targetName) {
       currentDMTarget = targetName; document.getElementById('headerTitle').textContent = targetName + " とのDM"; setupChatUI();
       const myName = currentUser.user_metadata.display_name;
@@ -491,10 +609,7 @@
             const isRelevant = (payload.new.sender_name === myName && payload.new.receiver_name === targetName) || (payload.new.sender_name === targetName && payload.new.receiver_name === myName);
             if (isRelevant) appendMessage(payload.new, true);
           }
-          if (payload.eventType === 'DELETE') { 
-            const el = document.getElementById(`msg-dm-${payload.old.id}`); 
-            if (el) el.remove(); 
-          }
+          if (payload.eventType === 'DELETE') { const el = document.getElementById(`msg-dm-${payload.old.id}`); if (el) el.remove(); }
         }).subscribe();
     }
 
@@ -532,22 +647,11 @@
       }
       
       document.getElementById('chatLoading').style.display = 'none';
-
-      if (error) {
-        await customAlert("メッセージの送信に失敗しました。\n詳細な原因: " + error.message);
-      } else {
-        input.value = ''; clearImageSelection();
-      }
+      if (error) { await customAlert("送信失敗: " + error.message); } else { input.value = ''; clearImageSelection(); }
     }
 
     async function deleteMessage(id, isDM) { const isOk = await customConfirm("削除しますか？"); if (isOk) { const table = isDM ? 'dms' : 'messages'; await supabaseClient.from(table).delete().eq('id', id); } }
-
-    async function reportMessage(msgId, targetUserId, text, roomNum, isDM) {
-      const isOk = await customConfirm("このメッセージを管理者に通報しますか？"); if (!isOk) return;
-      const rNum = isDM ? `DM: ${currentDMTarget}` : roomNum; 
-      const { error } = await supabaseClient.from('reports').insert([{ message_id: msgId, room_number: rNum, message_text: text, reported_by: currentUser.id, reported_user_id: targetUserId || 'DM_User' }]);
-      if (error) await customAlert("通報に失敗しました。"); else await customAlert("通報が完了しました。");
-    }
+    async function reportMessage(msgId, targetUserId, text, roomNum, isDM) { const isOk = await customConfirm("通報しますか？"); if (!isOk) return; const rNum = isDM ? `DM: ${currentDMTarget}` : roomNum; const { error } = await supabaseClient.from('reports').insert([{ message_id: msgId, room_number: rNum, message_text: text, reported_by: currentUser.id, reported_user_id: targetUserId || 'DM_User' }]); if (error) await customAlert("通報に失敗しました。"); else await customAlert("通報が完了しました。"); }
 
     function appendMessage(msg, isDM) {
       if (!msg) return;
@@ -563,9 +667,7 @@
       const time = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
       let imagesHtml = '';
-      if (msg.image_urls && msg.image_urls.length > 0) {
-        imagesHtml = '<div class="msg-images">'; msg.image_urls.forEach(url => { imagesHtml += `<img src="${url}" onclick="window.open('${url}', '_blank')">`; }); imagesHtml += '</div>';
-      }
+      if (msg.image_urls && msg.image_urls.length > 0) { imagesHtml = '<div class="msg-images">'; msg.image_urls.forEach(url => { imagesHtml += `<img src="${url}" onclick="window.open('${url}', '_blank')">`; }); imagesHtml += '</div>'; }
 
       const otherBg = isDM ? '#e6f2ff' : '#f0f2f5';
       const authorColor = isDM ? '#0084ff' : '#3ecf8e';
@@ -593,37 +695,29 @@
     async function openAdminPanel() {
       document.getElementById('appCard').dataset.state = 'admin';
       const listEl = document.getElementById('adminReportList');
-      listEl.innerHTML = '<p style="text-align:center; color:#888;">通報データを読み込み中...</p>';
+      listEl.innerHTML = '<p style="text-align:center; color:#888;">読込中...</p>';
       const { data, error } = await supabaseClient.from('reports').select('*').order('created_at', { ascending: false });
-      
-      if (error) { listEl.innerHTML = `<p style="color:red;">読込エラー: ${error.message}</p>`; return; }
-      if (!data || data.length === 0) { listEl.innerHTML = '<p style="text-align:center; color:#888; margin-top:20px;">通報されているメッセージはありません。</p>'; return; }
-
+      if (error) { listEl.innerHTML = `<p style="color:red;">読込エラー</p>`; return; }
+      if (!data || data.length === 0) { listEl.innerHTML = '<p style="text-align:center; color:#888; margin-top:20px;">通報はありません。</p>'; return; }
       listEl.innerHTML = '';
       data.forEach(report => {
-        const date = new Date(report.created_at).toLocaleString();
         const isDMReport = report.room_number && report.room_number.startsWith('DM:');
         listEl.innerHTML += `
           <div class="report-card" id="report-${report.id}">
-            <div class="info">
-              日時: ${date}<br>
-              種類: <span style="color:${isDMReport ? '#0084ff' : '#3ecf8e'}">${isDMReport ? 'DM' : 'ルーム (No.'+report.room_number+')'}</span><br>
-              対象ユーザーID: ${report.reported_user_id}
-            </div>
+            <div class="info">日時: ${new Date(report.created_at).toLocaleString()}<br>種類: <span style="color:${isDMReport ? '#0084ff' : '#3ecf8e'}">${isDMReport ? 'DM' : 'ルーム No.'+report.room_number}</span><br>対象ID: ${report.reported_user_id}</div>
             <div class="msg-box">${escapeHtml(report.message_text)}</div>
             <div class="actions">
               <button class="btn-warn" onclick="adminDeleteMessage('${report.message_id}', '${report.id}', ${isDMReport})">削除</button>
               <button class="btn-ban" onclick="adminBanUser('${report.reported_user_id}', '${report.id}')">BAN</button>
               <button class="btn-ignore" onclick="adminDismissReport('${report.id}')">破棄</button>
             </div>
-          </div>
-        `;
+          </div>`;
       });
     }
 
     async function adminDeleteMessage(msgId, reportId, isDMReport) { const isOk = await customConfirm("削除しますか？"); if (!isOk) return; const table = isDMReport ? 'dms' : 'messages'; await supabaseClient.from(table).delete().eq('id', msgId); await adminDismissReport(reportId, false); await customAlert("削除しました。"); }
-    async function adminBanUser(userId, reportId) { const isOk = await customConfirm("BANしますか？", "BAN実行", "BANする"); if (!isOk) return; const { error } = await supabaseClient.from('banned_users').insert([{ user_id: userId }]); if (error) { await customAlert("BANに失敗しました: " + error.message); return; } await supabaseClient.from('messages').delete().eq('user_id', userId); await supabaseClient.from('dms').delete().eq('sender_id', userId); await adminDismissReport(reportId, false); await customAlert("BANし、メッセージを削除しました。"); }
-    async function adminDismissReport(reportId, showMsg = true) { if (showMsg) { const isOk = await customConfirm("リストから消去しますか？"); if (!isOk) return; } await supabaseClient.from('reports').delete().eq('id', reportId); const el = document.getElementById(`report-${reportId}`); if (el) el.remove(); }
+    async function adminBanUser(userId, reportId) { const isOk = await customConfirm("BANしますか？", "BAN実行", "BANする"); if (!isOk) return; await supabaseClient.from('banned_users').insert([{ user_id: userId }]); await supabaseClient.from('messages').delete().eq('user_id', userId); await supabaseClient.from('dms').delete().eq('sender_id', userId); await adminDismissReport(reportId, false); await customAlert("BANし、メッセージを削除しました。"); }
+    async function adminDismissReport(reportId, showMsg = true) { if (showMsg) { const isOk = await customConfirm("破棄しますか？"); if (!isOk) return; } await supabaseClient.from('reports').delete().eq('id', reportId); const el = document.getElementById(`report-${reportId}`); if (el) el.remove(); }
   </script>
 </body>
 </html>
