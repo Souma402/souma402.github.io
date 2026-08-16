@@ -897,5 +897,6 @@
     async function adminBanUser(userId, reportId) { const isOk = await customConfirm("BANしますか？", "BAN実行", "BANする"); if (!isOk) return; await supabaseClient.from('banned_users').insert([{ user_id: userId }]); await supabaseClient.from('messages').delete().eq('user_id', userId); await supabaseClient.from('dms').delete().eq('sender_id', userId); await adminDismissReport(reportId, false); await customAlert("BANし、メッセージを削除しました。"); }
     async function adminDismissReport(reportId, showMsg = true) { if (showMsg) { const isOk = await customConfirm("破棄しますか？"); if (!isOk) return; } await supabaseClient.from('reports').delete().eq('id', reportId); const el = document.getElementById(`report-${reportId}`); if (el) el.remove(); }
   </script>
+<meta name="google-site-verification" content="bteXMWSoIa-BAaKL60c-AWfhh1gL5_CUJzdxcBESmUk" />
 </body>
 </html>
